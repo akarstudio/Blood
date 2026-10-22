@@ -15,6 +15,9 @@ import { ALL_BLOOD_GROUPS, BloodGroup } from '../types';
 import { BANGLADESH_DIVISIONS, getDistrictsForDivision } from '../data/bangladeshGeo';
 import { collection, query, where, getCountFromServer } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import heroImage from '../assets/images/hero_blood_donation_1792468900689.jpg';
+import awarenessImage from '../assets/images/awareness_blood_care_1792468899762.jpg';
+import volunteerImage from '../assets/images/community_volunteer_bd_1792468900535.jpg';
 
 interface HomePageProps {
   onNavigate: (page: string, params?: Record<string, string>) => void;
@@ -137,10 +140,17 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             <div className="lg:col-span-5">
               <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-md bg-white">
                 <img
-                  src="/src/assets/images/hero_blood_donation_1792468900689.jpg"
+                  src={heroImage}
                   alt="Blood donation center in Dhaka, Bangladesh"
                   className="w-full h-80 object-cover"
                   referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (!target.dataset.triedPublic) {
+                      target.dataset.triedPublic = 'true';
+                      target.src = '/assets/images/hero_blood_donation_1792468900689.jpg';
+                    }
+                  }}
                 />
                 <div className="p-4 bg-white/95 backdrop-blur-xs border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
                   <div className="flex items-center gap-2">
@@ -313,10 +323,17 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           {/* Awareness Card */}
           <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col justify-between shadow-2xs">
             <img
-              src="/src/assets/images/awareness_blood_care_1792468899762.jpg"
+              src={awarenessImage}
               alt="Clinical laboratory testing for blood transfusion safety"
               className="w-full h-48 object-cover"
               referrerPolicy="no-referrer"
+              onError={(e) => {
+                const target = e.currentTarget;
+                if (!target.dataset.triedPublic) {
+                  target.dataset.triedPublic = 'true';
+                  target.src = '/assets/images/awareness_blood_care_1792468899762.jpg';
+                }
+              }}
             />
             <div className="p-6 space-y-3 flex-1 flex flex-col justify-between">
               <div className="space-y-2">
@@ -342,10 +359,17 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col justify-between shadow-2xs">
             <div className="p-6 flex items-start gap-4">
               <img
-                src="/src/assets/images/community_volunteer_bd_1792468900535.jpg"
+                src={volunteerImage}
                 alt="Community Blood Donor Volunteer in Bangladesh"
                 className="w-20 h-20 rounded-xl object-cover shrink-0 border border-slate-200"
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  if (!target.dataset.triedPublic) {
+                    target.dataset.triedPublic = 'true';
+                    target.src = '/assets/images/community_volunteer_bd_1792468900535.jpg';
+                  }
+                }}
               />
               <div className="space-y-1">
                 <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Join Our Mission</span>
