@@ -1,0 +1,1331 @@
+YOUR ROLE
+
+Act as a senior QA engineer, full-stack developer, Firebase security specialist, application security auditor, database engineer, accessibility tester, and DevOps engineer.
+
+Your task is to perform a comprehensive quality audit of the existing Blood Group Finder Bangladesh web application, identify all reproducible defects, fix them in the actual project files, and verify the fixes.
+
+Do not merely provide a list of problems or recommendations. Inspect the project, execute the available checks, fix issues, and retest the application.
+
+The application must remain English-only.
+
+Critical instructions
+
+Inspect the existing project before making changes.
+
+Preserve working functionality and existing legitimate data.
+
+Do not rebuild the entire application unnecessarily.
+
+Do not replace real functionality with mock data or fake implementations.
+
+Do not remove existing features simply to make tests pass.
+
+Do not weaken authentication, authorization, privacy, or validation to bypass errors.
+
+Do not claim a test passed unless it was actually executed successfully.
+
+Do not claim a bug is fixed until the relevant verification has passed.
+
+Do not silently ignore failed tests, build errors, warnings, or security issues.
+
+If a required external service is unavailable, identify the limitation and test everything possible without pretending the integration works.
+
+Do not expose secrets, authentication tokens, passwords, private donor data, or service-account credentials in logs or reports.
+
+Continue fixing issues until the acceptance criteria are satisfied or a genuine environment limitation prevents further progress.
+
+Work directly on the existing project.
+
+2. PHASE ONE: PROJECT DISCOVERY
+
+Inspect the entire project and identify:
+
+Frontend framework and version
+
+TypeScript configuration
+
+Package manager and dependencies
+
+Application entry points
+
+Routing configuration
+
+Authentication implementation
+
+Firebase initialization
+
+Firestore data access
+
+Firestore Security Rules
+
+Cloud Functions or other backend functions
+
+Role-based access control
+
+Donor registration and verification
+
+Donor approval workflow
+
+Donor search and filtering
+
+Availability calculation
+
+Administrative dashboard
+
+User and role management
+
+CSV/XLSX import
+
+CSV/XLSX export
+
+Website settings
+
+Audit logging
+
+Automated tests
+
+Build and deployment configuration
+
+Environment variables and external service dependencies
+
+Read the relevant source files rather than relying only on filenames.
+
+Create an internal inventory of implemented features, incomplete features, security-sensitive operations, and dependencies.
+
+Identify dead code, duplicate logic, unused components, inconsistent types, invalid imports, missing files, outdated dependencies, and conflicting implementations.
+
+Do not delete a feature simply because it is difficult to test.
+
+3. PHASE TWO: BASELINE CHECKS
+
+Before changing the code, run all checks supported by the project.
+
+Examples include:
+
+Dependency installation or dependency integrity verification
+
+TypeScript type checking
+
+ESLint or the configured linter
+
+Unit tests
+
+Integration tests
+
+Backend tests
+
+Firebase emulator tests, if configured
+
+Production build
+
+Dependency vulnerability audit
+
+Route and component checks
+
+Use the package manager already established by the project.
+
+Inspect the actual package scripts before executing commands.
+
+Do not invent script names or assume a command exists.
+
+Record the baseline result of each check.
+
+Classify problems as:
+
+Critical
+
+High
+
+Medium
+
+Low
+
+Informational
+
+Fix critical and high-priority issues first, especially security defects, data loss risks, authorization bypasses, broken authentication, and public disclosure of private donor information.
+
+4. FRONTEND AND USER INTERFACE QA
+
+Inspect every implemented route and major component.
+
+Check:
+
+Broken navigation links
+
+Missing pages
+
+Blank screens
+
+Runtime exceptions
+
+React rendering errors
+
+Invalid component props
+
+Incorrect conditional rendering
+
+Broken loading states
+
+Broken empty states
+
+Incorrect error messages
+
+Forms that cannot be submitted
+
+Buttons that do nothing
+
+Dialogs that cannot be closed
+
+Tables that overflow
+
+Missing pagination
+
+Incorrect filtering
+
+Duplicate form submissions
+
+Stale state after saving
+
+Incorrect redirects
+
+Console errors
+
+Unhandled promise rejections
+
+Missing React keys
+
+Hydration errors, if applicable
+
+Incorrect API response handling
+
+Check that every visible control performs its advertised action.
+
+Do not leave buttons that only look functional.
+
+If an external integration is not configured, clearly communicate that state instead of showing fake success.
+
+Verify that all user-facing content is in English, including:
+
+Navigation
+
+Buttons
+
+Form labels
+
+Validation messages
+
+Notifications
+
+Dialogs
+
+Dashboard labels
+
+Status badges
+
+Empty states
+
+Error messages
+
+Reports
+
+Emails and verification instructions
+
+Accessibility labels
+
+Correct inconsistent terminology, spelling, formatting, and date displays.
+
+5. RESPONSIVE DESIGN AND ACCESSIBILITY
+
+Test the application at representative viewport sizes, including:
+
+Mobile: 320–375 px
+
+Mobile: 390–430 px
+
+Tablet: approximately 768 px
+
+Desktop: 1024 px
+
+Large desktop: 1440 px or wider
+
+Check:
+
+Horizontal page overflow
+
+Broken layouts
+
+Overlapping controls
+
+Unreadable text
+
+Hidden action buttons
+
+Sidebar behavior
+
+Navigation menus
+
+Modal sizing
+
+Responsive tables
+
+Search filters
+
+Form usability
+
+Touch-target size
+
+Keyboard navigation
+
+Focus visibility
+
+Dialog focus handling
+
+Semantic HTML
+
+Form label associations
+
+Accessible status messages
+
+Appropriate color contrast
+
+Screen-reader labels
+
+Fix layout and accessibility defects without compromising the visual design.
+
+If browser automation is available, use it to inspect the actual rendered application. If not, run static checks and explain what could not be visually verified.
+
+6. AUTHENTICATION QA
+
+Inspect and test:
+
+Registration
+
+Sign-in
+
+Sign-out
+
+Forgot password
+
+Password reset
+
+Email verification
+
+Verification resend
+
+Expired or invalid verification links
+
+Session persistence
+
+Session expiration
+
+Protected routes
+
+Access-denied pages
+
+Disabled accounts
+
+Suspended accounts
+
+Authentication error handling
+
+Verify that:
+
+Passwords are never stored in plaintext.
+
+Authentication errors are handled safely.
+
+Private routes are not accessible without authentication.
+
+Signing out removes access to protected operations.
+
+A frontend-only login flag is never treated as proof of authentication.
+
+Users cannot impersonate another user by changing a client-side UID.
+
+Users cannot access another donor's private data by guessing a document ID.
+
+Reset and verification flows use real configured provider functionality.
+
+Do not reveal whether an arbitrary email address belongs to an account.
+
+Do not simulate successful authentication, email delivery, or SMS delivery.
+
+7. FIREBASE AND DATABASE QA
+
+Inspect Firebase initialization and every important database operation.
+
+Check:
+
+Missing configuration
+
+Invalid environment variable handling
+
+Incorrect collection names
+
+Incorrect document paths
+
+Inconsistent data types
+
+Invalid timestamp conversions
+
+Missing Firestore indexes
+
+Incorrect query filters
+
+Unhandled permission-denied errors
+
+Missing network error handling
+
+Inconsistent create/update/delete behavior
+
+Duplicate record creation
+
+Concurrent update problems
+
+Partial failures in multi-step operations
+
+Missing validation
+
+Unsafe batch writes
+
+Queries that retrieve excessive data
+
+Incorrect pagination cursors
+
+Data migration risks
+
+Ensure that:
+
+Client operations are restricted by Firestore Security Rules.
+
+Privileged operations use trusted backend functions.
+
+Sensitive records are not publicly readable.
+
+Server timestamps are used for trusted audit events.
+
+Invalid records cannot be inserted through a direct API request.
+
+A user cannot overwrite fields outside their authorized scope.
+
+Existing legitimate data is not deleted during testing or migration.
+
+Use the Firebase Emulator Suite where feasible.
+
+If a live Firebase environment is required but unavailable, do not weaken production rules to make the application appear functional. Explain the exact configuration or test limitation.
+
+8. FIRESTORE SECURITY AND BACKEND AUTHORIZATION AUDIT
+
+Treat every client request as potentially malicious.
+
+Inspect all Firestore Security Rules and trusted backend endpoints.
+
+Test attempts to:
+
+Read private donor records without permission
+
+Modify another donor's record
+
+Approve one's own donor application
+
+Change one's own verification status
+
+Change one's own approval status
+
+Set arbitrary eligibility dates
+
+Forge calculated availability
+
+Assign an administrator role to oneself
+
+Grant permissions to another user without authorization
+
+Modify website settings without permission
+
+Change the availability policy without permission
+
+Modify or delete audit logs
+
+Export the entire donor database without permission
+
+Bypass role checks by calling backend endpoints directly
+
+Submit unexpected fields using mass assignment
+
+Manipulate document IDs or user IDs
+
+Access suspended or disabled accounts
+
+Enforce authorization on the server and in Firestore Security Rules.
+
+Frontend route guards and hidden buttons are not security controls by themselves.
+
+Use a default-deny approach where appropriate.
+
+Do not expose Firebase Admin SDK credentials or service-account keys.
+
+Do not fix authorization problems by making collections publicly readable or permitting unrestricted writes.
+
+Create or improve negative security tests that demonstrate unauthorized operations are rejected.
+
+9. ROLE-BASED ACCESS CONTROL TESTS
+
+Verify every implemented role and permission.
+
+Default roles:
+
+Super Admin
+
+Admin
+
+Donor Manager
+
+Data Entry Operator
+
+Import/Export Operator
+
+Viewer/Auditor
+
+Test that each role can perform only the operations permitted by its assigned permissions.
+
+Check at least:
+
+donors.view
+
+donors.create
+
+donors.update
+
+donors.approve
+
+donors.reject
+
+donors.suspend
+
+donors.export
+
+donors.import
+
+users.view
+
+users.create
+
+users.manage_roles
+
+settings.view
+
+settings.availability_policy.view
+
+settings.availability_policy.manage
+
+audit_logs.view
+
+reports.view
+
+Verify that:
+
+Role names do not automatically grant unspecified privileges.
+
+Permissions are checked by trusted backend operations.
+
+Client-side role edits do not grant actual privileges.
+
+Users cannot change their own permissions.
+
+Unauthorized requests return appropriate errors.
+
+Viewer/Auditor users cannot modify records.
+
+Import/Export Operators cannot automatically approve donors or manage roles.
+
+Data Entry Operators cannot change the availability policy.
+
+Admin users cannot bypass restrictions unless explicitly authorized.
+
+The last active Super Admin is protected against accidental lockout.
+
+Fix inconsistencies between UI permissions, backend checks, and Firestore rules.
+
+10. DONOR REGISTRATION AND APPROVAL QA
+
+Test valid and invalid registration data.
+
+Verify:
+
+Required fields
+
+Blood group validation
+
+Email normalization
+
+Bangladesh phone-number validation
+
+Division, district, and upazila validation
+
+Donation date validation
+
+Consent capture
+
+Duplicate account handling
+
+Duplicate donor detection
+
+Verification state transitions
+
+Approval state transitions
+
+Rejection reasons
+
+Suspension and reactivation
+
+Error reporting
+
+Verify the intended public visibility rules:
+
+Pending donors must not appear publicly.
+
+Rejected donors must not appear publicly.
+
+Unverified donors must not appear publicly.
+
+Suspended donors must not appear publicly.
+
+Deactivated donors must not appear publicly.
+
+Unavailable donors must not appear in available-donor search.
+
+Only eligible, approved, verified, active donors may appear when all search conditions match.
+
+Check that administrative approval cannot be bypassed through imported data or direct database writes.
+
+Ensure public API responses never expose private fields, even if the frontend does not display them.
+
+11. DONOR AVAILABILITY POLICY — CRITICAL TEST AREA
+
+The default waiting period must remain three calendar months, not 90 days.
+
+The canonical policy document should be:
+
+systemSettings/availabilityPolicy
+
+Expected default fields:
+
+minimumIntervalMonths: 3
+
+policyVersion
+
+updatedAt
+
+updatedBy
+
+Check that only users with:
+
+settings.availability_policy.manage
+
+can update the policy.
+
+Verify that every successful policy change creates a trustworthy audit event containing the actor, action, previous value, new value, policy version, timestamp, and outcome.
+
+Use a trusted backend and server-generated timestamps for policy changes and audit records.
+
+Required date tests
+
+Test:
+
+Donation date of January 15: eligibility on April 15 under the default policy.
+
+Donation date of January 31: documented month-end handling.
+
+Donation date of November 30: correct handling across year boundaries.
+
+Donation dates around February 28 and February 29.
+
+Leap-year transitions.
+
+The day before eligibility.
+
+The exact eligibility date.
+
+The day after eligibility.
+
+Bangladesh-local date boundaries.
+
+Different browser timezone settings.
+
+Missing donation date.
+
+Invalid or future donation date.
+
+Donor updates the last donation date.
+
+Policy changes from three months to another permitted interval.
+
+Search results after a policy change.
+
+Donor explicitly chooses unavailable.
+
+Donor becomes suspended or deactivated.
+
+Donor is unverified, pending, or rejected.
+
+Forged eligibilityDate or calculatedAvailability.
+
+Imported records containing forged status values.
+
+Document and enforce one consistent month-end rule. For example, if the target month has no equivalent day, clamp the eligibility date to the final day of that month.
+
+Use the Asia/Dhaka calendar date for eligibility comparisons. Prevent off-by-one errors caused by converting date-only values to UTC timestamps.
+
+Availability must be calculated from trusted data and the current approved policy.
+
+A scheduled job must not be required for accurate search results.
+
+A manual unavailable choice must not be overridden simply because the waiting period has passed.
+
+Do not mark donors with missing donation dates as eligible automatically.
+
+Do not describe software availability as medical certification.
+
+12. DONOR SEARCH AND PUBLIC PRIVACY QA
+
+Test public search across all eight blood groups:
+
+A+
+
+A-
+
+B+
+
+B-
+
+AB+
+
+AB-
+
+O+
+
+O-
+
+Test:
+
+Single-filter search
+
+Combined filters
+
+Division filtering
+
+District filtering
+
+Upazila filtering
+
+Availability filtering
+
+No-results behavior
+
+Pagination
+
+Empty filters
+
+Invalid filter values
+
+Search after availability-policy changes
+
+Duplicate results
+
+Query failures
+
+Missing or legacy fields
+
+Verify that public results contain only authorized public fields.
+
+Test direct API and database access, not just what the visible UI displays.
+
+Ensure search never retrieves the entire donor database unnecessarily.
+
+Check that phone numbers, email addresses, exact home addresses, private notes, and other sensitive data remain private unless the donor has explicitly consented to the corresponding public disclosure.
+
+13. CSV AND XLSX IMPORT QA
+
+Test both supported file formats.
+
+Check:
+
+Valid file upload
+
+Unsupported file type
+
+Empty file
+
+Malformed file
+
+Missing required columns
+
+Incorrect column mapping
+
+Invalid blood groups
+
+Invalid email addresses
+
+Invalid phone numbers
+
+Invalid dates
+
+Future donation dates
+
+Duplicate records
+
+Very large files
+
+Partial row failures
+
+Unicode and English text handling
+
+Formula injection
+
+Interrupted imports
+
+Retry behavior
+
+Batch limits
+
+Import history
+
+Error report generation
+
+Import permissions
+
+Verify that uploaded data cannot override:
+
+Roles
+
+Permissions
+
+Contact verification
+
+Administrator approval
+
+Account status
+
+Trusted availability calculations
+
+Eligibility dates
+
+Audit records
+
+Use safe row validation and trusted processing for privileged changes.
+
+Make sure failed rows are clearly identified without leaking unnecessary personal data.
+
+Never allow an imported spreadsheet to grant administrative privileges or bypass donor approval.
+
+14. CSV AND XLSX EXPORT QA
+
+Test:
+
+Authorized export
+
+Unauthorized export
+
+Export with filters
+
+Empty export
+
+Large export
+
+CSV escaping
+
+XLSX cell formatting
+
+Unicode handling
+
+Formula-injection protection
+
+Pagination or backend export processing
+
+Export history and audit logs
+
+Field-level privacy
+
+Permission revocation
+
+Confirm that export files do not contain:
+
+Passwords
+
+OTPs
+
+Authentication tokens
+
+Service credentials
+
+Unnecessary private fields
+
+Unauthorized donor contacts
+
+Internal security metadata
+
+Check the actual generated file structure, not only the success notification.
+
+15. ADMIN DASHBOARD QA
+
+Test every implemented administrative feature.
+
+Check:
+
+Dashboard metrics use actual database results.
+
+Loading states are handled.
+
+Failed requests are visible and recoverable.
+
+Donor tables sort and filter correctly.
+
+Pagination works.
+
+Approval and rejection update the correct record.
+
+Suspension and reactivation work correctly.
+
+Role assignments are secure.
+
+Policy updates use the correct permission.
+
+Website settings save correctly.
+
+Audit records are generated for sensitive operations.
+
+Audit logs cannot be altered by unauthorized users.
+
+Export permissions are respected.
+
+Navigation matches the current user's permissions.
+
+The last active Super Admin cannot be accidentally removed.
+
+Do not fabricate dashboard statistics or show fake successful updates.
+
+16. AUDIT LOG INTEGRITY
+
+Review all sensitive administrative operations.
+
+Audit relevant events such as:
+
+Donor creation and modification
+
+Approval and rejection
+
+Suspension and reactivation
+
+Role assignment and revocation
+
+Availability-policy changes
+
+Website settings changes
+
+Imports and exports
+
+Sensitive administrative access where appropriate
+
+Verify:
+
+Actor UID is derived from trusted authentication context.
+
+Timestamps are generated by the server.
+
+Clients cannot fabricate successful audit events.
+
+Unauthorized users cannot alter or delete audit records.
+
+Sensitive personal information is not unnecessarily copied into logs.
+
+Old and new values are recorded only when appropriate.
+
+Failed privileged actions are logged where practical and safe.
+
+Audit failure handling does not leave the system in an inconsistent state.
+
+Use atomic or otherwise consistency-safe operations for sensitive changes and their audit records where the database supports them.
+
+Do not claim audit logs are immutable unless the actual architecture enforces that property.
+
+17. PERFORMANCE AND RELIABILITY
+
+Inspect for:
+
+Excessive Firestore reads
+
+Full-collection queries
+
+Unnecessary React renders
+
+Memory leaks
+
+Unbounded listeners
+
+Missing listener cleanup
+
+Repeated API calls
+
+Missing debouncing
+
+Slow initial loading
+
+Oversized frontend bundles
+
+Inefficient table rendering
+
+Unnecessary dependencies
+
+Poor error recovery
+
+Race conditions
+
+Duplicate writes
+
+Stale policy caches
+
+Fix practical performance issues without compromising security or correctness.
+
+Use pagination and database-side filtering.
+
+Ensure listeners are unsubscribed when components unmount.
+
+Avoid aggressive optimization that introduces unnecessary complexity.
+
+Do not add caching that could leave a stale availability policy in use without an appropriate invalidation strategy.
+
+18. DEPENDENCIES AND CONFIGURATION
+
+Inspect:
+
+Missing packages
+
+Incompatible package versions
+
+Vulnerable dependencies
+
+Duplicate dependencies
+
+Incorrect imports
+
+Broken build scripts
+
+Incorrect environment variable names
+
+Missing configuration validation
+
+Accidental secrets in source files
+
+Incorrect Firebase project configuration
+
+Run the package manager's supported security audit.
+
+Do not blindly upgrade every dependency to its latest version.
+
+Prefer targeted, compatible updates.
+
+Review changes that could introduce breaking changes.
+
+Never print real secrets into the QA report.
+
+Do not commit .env secrets, service account keys, or private credentials.
+
+Document environment variables using safe example placeholders.
+
+19. AUTOMATED TESTING
+
+Create or improve tests for critical logic.
+
+Use the test framework already configured in the project. If no test framework exists, add a suitable one compatible with the application.
+
+Prioritize:
+
+Unit tests for validation
+
+Unit tests for availability calculation
+
+Unit tests for date and timezone behavior
+
+Unit tests for permission evaluation
+
+Component tests for forms and status rendering
+
+Integration tests for registration and approval
+
+Backend authorization tests
+
+Firestore Security Rules tests
+
+Import/export tests
+
+Regression tests for each bug fixed
+
+Add negative tests for unauthorized operations.
+
+Use synthetic test data only.
+
+Do not use real donor personal information in test fixtures.
+
+Do not execute destructive tests against production donor data.
+
+If browser automation is available, run end-to-end tests for key workflows.
+
+If a test cannot run because credentials, external services, browser support, or environment configuration are missing, report it as BLOCKED rather than PASSED.
+
+20. SAFE BUG-FIXING WORKFLOW
+
+For every issue discovered:
+
+Record the issue and its severity.
+
+Identify the root cause.
+
+Find the relevant code and configuration.
+
+Implement the smallest safe fix that addresses the root cause.
+
+Add a regression test when practical.
+
+Run the relevant test.
+
+Run related tests to detect regressions.
+
+Inspect the code changes.
+
+Confirm that security and privacy have not been weakened.
+
+Mark the issue fixed only after verification.
+
+Avoid:
+
+Disabling failing tests without justification
+
+Deleting tests to obtain a green build
+
+Using any to hide important TypeScript errors
+
+Adding broad @ts-ignore directives
+
+Swallowing exceptions
+
+Making all Firestore rules public
+
+Bypassing authorization
+
+Replacing real APIs with fake responses
+
+Suppressing meaningful errors
+
+Hardcoding successful results
+
+Removing required functionality
+
+If a test exposes a genuine defect, fix the implementation rather than changing the expected behavior merely to pass the test.
+
+If the expected behavior is genuinely ambiguous, document the ambiguity and choose the safest behavior consistent with the project requirements.
+
+21. FINAL VERIFICATION
+
+After implementing fixes, rerun all feasible checks:
+
+TypeScript checks
+
+Lint
+
+Unit tests
+
+Integration tests
+
+Backend tests
+
+Security Rules tests
+
+Import/export tests
+
+Production build
+
+Dependency audit
+
+Browser or end-to-end tests, where available
+
+Compare the results with the initial baseline.
+
+Check for:
+
+New regressions
+
+Remaining critical issues
+
+Remaining high-priority issues
+
+Missing configuration
+
+Unverified external integrations
+
+Missing deployment requirements
+
+Unintended schema changes
+
+Accidental deletion of working features
+
+Review the final changes before reporting completion.
+
+22. REQUIRED QA REPORT
+
+At the end, produce a clear English-language report containing:
+
+A. Overall Status
+
+Choose one:
+
+PASS
+
+PASS WITH LIMITATIONS
+
+FAIL
+
+Explain the reason for the selected status.
+
+B. Baseline Results
+
+List checks performed before fixes and their results.
+
+C. Bugs Found
+
+For each issue, include:
+
+Issue ID
+
+Severity
+
+Affected feature
+
+Root cause
+
+Fix implemented
+
+Verification performed
+
+Current status
+
+D. Security Findings
+
+Report authentication, authorization, Firestore rules, privacy, role permissions, import/export, and audit-log findings.
+
+Do not include exploitable secrets or real donor information.
+
+E. Test Results
+
+Use this structure:
+
+Check
+
+Result
+
+Details
+
+TypeScript
+
+PASS / FAIL / BLOCKED
+
+Actual output
+
+Lint
+
+PASS / FAIL / BLOCKED
+
+Actual output
+
+Unit tests
+
+PASS / FAIL / BLOCKED
+
+Actual output
+
+Integration tests
+
+PASS / FAIL / BLOCKED
+
+Actual output
+
+Security Rules
+
+PASS / FAIL / BLOCKED
+
+Actual output
+
+Availability tests
+
+PASS / FAIL / BLOCKED
+
+Actual output
+
+Import/export
+
+PASS / FAIL / BLOCKED
+
+Actual output
+
+Production build
+
+PASS / FAIL / BLOCKED
+
+Actual output
+
+Dependency audit
+
+PASS / FAIL / BLOCKED
+
+Actual output
+
+End-to-end tests
+
+PASS / FAIL / BLOCKED
+
+Actual output
+
+Include test counts when available.
+
+Do not report checks that were not executed as passed.
+
+F. Remaining Issues
+
+List all unresolved defects, environment limitations, external provider configuration requirements, and manual actions.
+
+If there are no known unresolved issues, state that no unresolved issues were identified in the checks actually performed. Do not claim that all possible defects have been eliminated.
+
+G. Files Changed
+
+List important files created, modified, or removed and explain why.
+
+H. Deployment Readiness
+
+Provide exact next steps for any remaining Firebase configuration, security-rule deployment, index deployment, backend deployment, email/SMS provider setup, and hosting deployment.
+
+I. Final Recommendation
+
+State whether the application is safe to proceed to staging, requires additional fixes, or is ready for production deployment based on the evidence gathered.
+
+Do not declare production readiness solely because the frontend builds successfully.
+
+23. FINAL EXECUTION INSTRUCTION
+
+Start now.
+
+Inspect the existing application and establish the baseline.
+
+Then audit and fix the actual code in priority order. Continue through the available checks and rerun tests after every meaningful set of fixes.
+
+Do not stop after producing a plan.
+
+Do not stop after fixing only visual defects.
+
+Do not stop merely because the application compiles.
+
+Focus on correctness, privacy, security, reliable donor availability, real backend behavior, and prevention of data loss.
+
+If the environment supports file editing and command execution, use those capabilities to implement and verify fixes directly.
+
+If any task cannot be performed in the current environment, state exactly what is blocked and what is required to complete it.
+
+Finish with the evidence-based QA report defined above.

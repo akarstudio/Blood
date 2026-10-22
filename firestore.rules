@@ -1,0 +1,206 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn() && 
+        'email' in request.auth.token && 
+        request.auth.token.email.lower() == 'abrar.noceng@gmail.com';
+    }
+
+    function hasAdminRole() {
+      return isBootstrappedAdmin() || (
+        isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        'roleIds' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
+        (
+          'super_admin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roleIds ||
+          'admin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roleIds
+        )
+      );
+    }
+
+    function hasDonorManagerRole() {
+      return hasAdminRole() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        'roleIds' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
+        'donor_manager' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roleIds
+      );
+    }
+
+    function hasStaffRole() {
+      return isBootstrappedAdmin() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        'roleIds' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
+        (
+          'super_admin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roleIds ||
+          'admin' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roleIds ||
+          'donor_manager' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roleIds ||
+          'data_entry_operator' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roleIds ||
+          'import_export_operator' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roleIds ||
+          'viewer_auditor' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roleIds
+        )
+      );
+    }
+
+    function hasAuditorRole() {
+      return hasAdminRole() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        'roleIds' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
+        'viewer_auditor' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roleIds
+      );
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // USERS COLLECTION
+    match /users/{userId} {
+      allow get: if isOwner(userId) || hasAdminRole();
+      allow list: if hasAdminRole();
+
+      // Users can create their own profile without self-granting admin roles
+      allow create: if isOwner(userId) && (
+        isBootstrappedAdmin() || 
+        !('super_admin' in request.resource.data.roleIds || 'admin' in request.resource.data.roleIds)
+      );
+
+      // Users can update their basic fields; only admins can change roleIds and accountStatus
+      allow update: if hasAdminRole() || (
+        isOwner(userId) && 
+        request.resource.data.roleIds == resource.data.roleIds &&
+        request.resource.data.accountStatus == resource.data.accountStatus
+      );
+
+      allow delete: if hasAdminRole() && !isOwner(userId) && (
+        resource == null || !('email' in resource.data) || resource.data.email.lower() != 'abrar.noceng@gmail.com'
+      );
+    }
+
+    // DONORS COLLECTION
+    match /donors/{donorId} {
+      // 1. Get single document:
+      // Allow read if user is the authenticated owner
+      // Or if caller is authorized staff (super_admin, admin, donor_manager, data_entry, import_export, viewer)
+      // Or if the public doc exists and is approved, verified, and active
+      allow get: if (
+        isSignedIn() && (
+          donorId == request.auth.uid ||
+          (resource != null && 'uid' in resource.data && resource.data.uid == request.auth.uid) ||
+          hasStaffRole()
+        )
+      ) || (
+        resource != null &&
+        resource.data.approvalStatus == 'approved' &&
+        resource.data.contactVerificationStatus == 'verified' &&
+        resource.data.accountStatus == 'active'
+      );
+
+      // 2. List queries:
+      // Allow if caller is authorized staff, or querying their own record,
+      // Or public searching approved, verified, active donors
+      allow list: if (
+        isSignedIn() && hasStaffRole()
+      ) || (
+        isSignedIn() && resource != null && 'uid' in resource.data && resource.data.uid == request.auth.uid
+      ) || (
+        resource != null &&
+        resource.data.approvalStatus == 'approved' &&
+        resource.data.contactVerificationStatus == 'verified' &&
+        resource.data.accountStatus == 'active'
+      );
+
+      // 3. Creation:
+      // Registered authenticated user creating their own donor profile with pending status
+      // Or authorized staff (donor_manager, admin, super_admin, data_entry_operator)
+      allow create: if isSignedIn() && (
+        hasDonorManagerRole() || (
+          (request.resource.data.uid == request.auth.uid || donorId == request.auth.uid) &&
+          request.resource.data.approvalStatus == 'pending' &&
+          request.resource.data.contactVerificationStatus == 'unverified' &&
+          request.resource.data.accountStatus == 'active'
+        )
+      );
+
+      // 4. Update:
+      // Donor managers and admins can update all fields
+      // Donor owners can update declaredAvailability, contact preferences, and notes,
+      // but strictly NOT approvalStatus, contactVerificationStatus, or accountStatus
+      allow update: if hasDonorManagerRole() || (
+        isSignedIn() &&
+        (donorId == request.auth.uid || (resource != null && 'uid' in resource.data && resource.data.uid == request.auth.uid)) &&
+        request.resource.data.approvalStatus == resource.data.approvalStatus &&
+        request.resource.data.contactVerificationStatus == resource.data.contactVerificationStatus &&
+        request.resource.data.accountStatus == resource.data.accountStatus
+      );
+
+      // 5. Delete:
+      // Admins can delete any donor.
+      // Registered donors can delete their own donor profile (Right to be Forgotten).
+      allow delete: if hasAdminRole() || (
+        isSignedIn() && (
+          donorId == request.auth.uid ||
+          (resource != null && 'uid' in resource.data && resource.data.uid == request.auth.uid)
+        )
+      );
+    }
+
+    // REGISTERED PHONES LOOKUP (to prevent duplicates without scanning private donor records)
+    match /registeredPhones/{phone} {
+      allow get: if true;
+      allow create, update: if isSignedIn() && (
+        hasAdminRole() || (
+          request.resource.data.uid == request.auth.uid &&
+          (resource == null || resource.data.uid == request.auth.uid)
+        )
+      );
+      allow delete: if hasAdminRole() || (
+        isSignedIn() && resource != null && resource.data.uid == request.auth.uid
+      );
+    }
+
+    // SYSTEM SETTINGS
+    match /systemSettings/availabilityPolicy {
+      allow read: if true;
+      allow write: if hasAdminRole();
+    }
+
+    match /systemSettings/siteConfiguration {
+      allow read: if true;
+      allow write: if hasAdminRole();
+    }
+
+    // ROLES COLLECTION
+    match /roles/{roleId} {
+      allow read: if isSignedIn();
+      allow write: if hasAdminRole();
+    }
+
+    // AUDIT LOGS
+    match /auditLogs/{logId} {
+      allow read: if hasAdminRole() || hasAuditorRole();
+      allow create: if isSignedIn();
+      allow update, delete: if false; // Immutable audit logs
+    }
+
+    // IMPORT JOBS
+    match /importJobs/{jobId} {
+      allow read, write: if hasStaffRole();
+    }
+  }
+}

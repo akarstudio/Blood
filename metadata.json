@@ -1,0 +1,6 @@
+{
+  "name": "Blood Group Finder Bangladesh",
+  "description": "Secure, trustworthy healthcare platform for finding blood donors across Bangladesh by blood group and location, with donor verification, availability policy enforcement, and role-based administration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,174 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Account",
+      "description": "Authenticated user profile and role assignment",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "roleIds": { "type": "array" },
+        "accountStatus": { "type": "string", "enum": ["active", "suspended", "deactivated"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "lastLoginAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "roleIds", "accountStatus", "createdAt"]
+    },
+    "Donor": {
+      "title": "Donor Profile",
+      "description": "Registered blood donor with eligibility, location, and verification details",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "fullName": { "type": "string", "maxLength": 100 },
+        "normalizedName": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "format": "email" },
+        "normalizedEmail": { "type": "string" },
+        "phone": { "type": "string", "maxLength": 20 },
+        "normalizedPhone": { "type": "string", "maxLength": 20 },
+        "bloodGroup": { "type": "string", "enum": ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"] },
+        "division": { "type": "string" },
+        "district": { "type": "string" },
+        "upazila": { "type": "string" },
+        "lastDonationDate": { "type": "string" },
+        "eligibilityDate": { "type": "string" },
+        "declaredAvailability": { "type": "string", "enum": ["available", "unavailable"] },
+        "calculatedAvailability": { "type": "string", "enum": ["available", "unavailable"] },
+        "contactVerificationStatus": { "type": "string", "enum": ["unverified", "pending", "verified"] },
+        "approvalStatus": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "accountStatus": { "type": "string", "enum": ["active", "suspended", "deactivated"] },
+        "publicContactConsent": { "type": "boolean" },
+        "publicProfileConsent": { "type": "boolean" },
+        "contactVisibilityPreference": { "type": "string", "enum": ["registered_only", "public", "hidden"] },
+        "preferredContactMethod": { "type": "string", "enum": ["phone", "whatsapp", "sms", "email"] },
+        "privacyConsentVersion": { "type": "string" },
+        "privacyConsentAt": { "type": "string" },
+        "approvedBy": { "type": "string" },
+        "approvedAt": { "type": "string" },
+        "rejectionReason": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": [
+        "fullName",
+        "email",
+        "phone",
+        "bloodGroup",
+        "division",
+        "district",
+        "upazila",
+        "declaredAvailability",
+        "approvalStatus",
+        "contactVerificationStatus",
+        "accountStatus",
+        "createdAt"
+      ]
+    },
+    "Role": {
+      "title": "System Role",
+      "description": "RBAC role definition with specific permissions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "permissions": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "permissions"]
+    },
+    "AvailabilityPolicy": {
+      "title": "Availability Policy",
+      "description": "Centralized blood donation waiting interval settings",
+      "type": "object",
+      "properties": {
+        "minimumIntervalMonths": { "type": "number" },
+        "policyVersion": { "type": "number" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["minimumIntervalMonths", "policyVersion", "updatedAt", "updatedBy"]
+    },
+    "SiteConfiguration": {
+      "title": "Site Configuration",
+      "description": "Configurable website settings and public notice details",
+      "type": "object",
+      "properties": {
+        "siteName": { "type": "string" },
+        "contactEmail": { "type": "string" },
+        "contactPhone": { "type": "string" },
+        "emergencyHelplineNotice": { "type": "string" },
+        "publicSearchEnabled": { "type": "boolean" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["siteName", "updatedAt"]
+    },
+    "AuditLog": {
+      "title": "Audit Log",
+      "description": "Immutable security and administrative action audit record",
+      "type": "object",
+      "properties": {
+        "actorUid": { "type": "string" },
+        "actorEmail": { "type": "string" },
+        "action": { "type": "string" },
+        "entityType": { "type": "string" },
+        "entityId": { "type": "string" },
+        "previousValues": { "type": "object" },
+        "newValues": { "type": "object" },
+        "timestamp": { "type": "string" },
+        "outcome": { "type": "string", "enum": ["success", "failure"] },
+        "reason": { "type": "string" }
+      },
+      "required": ["actorUid", "action", "entityType", "timestamp", "outcome"]
+    },
+    "ImportJob": {
+      "title": "Import Job",
+      "description": "Log of donor CSV/XLSX bulk imports",
+      "type": "object",
+      "properties": {
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["completed", "failed", "processing"] },
+        "totalRows": { "type": "number" },
+        "successCount": { "type": "number" },
+        "failureCount": { "type": "number" },
+        "duplicateCount": { "type": "number" },
+        "filename": { "type": "string" }
+      },
+      "required": ["createdBy", "createdAt", "status", "totalRows", "successCount"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and RBAC role assignments"
+    },
+    "/donors/{donorId}": {
+      "schema": "Donor",
+      "description": "Registered blood donors directory"
+    },
+    "/roles/{roleId}": {
+      "schema": "Role",
+      "description": "System roles and their associated permission strings"
+    },
+    "/systemSettings/availabilityPolicy": {
+      "schema": "AvailabilityPolicy",
+      "description": "Global donor availability waiting policy"
+    },
+    "/systemSettings/siteConfiguration": {
+      "schema": "SiteConfiguration",
+      "description": "Configurable site identity and support settings"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Security and administrative audit trail"
+    },
+    "/importJobs/{jobId}": {
+      "schema": "ImportJob",
+      "description": "Batch donor import history"
+    }
+  }
+}
