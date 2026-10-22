@@ -166,8 +166,15 @@ npm run dev
 1. **Authentication:**
    - Go to Firebase Console $\rightarrow$ Authentication $\rightarrow$ Sign-in method.
    - Enable **Email/Password** and **Google**.
-2. **Firestore Security Rules:**
+2. **Authorized Domains (Required for Vercel / Live Demo):**
+   - Go to Firebase Console $\rightarrow$ **Authentication** $\rightarrow$ **Settings** $\rightarrow$ **Authorized domains**.
+   - Click **Add domain**.
+   - Enter your Vercel deployment domain (e.g. `your-app.vercel.app` or custom domain) and click **Done**.
+   - *If this step is skipped, Firebase will throw `Firebase: Error (auth/unauthorized-domain)` when users try to log in via Google on your live deployment.*
+3. **Firestore Security Rules:**
    - Deploy `firestore.rules` using Firebase CLI:
      ```bash
      firebase deploy --only firestore:rules
      ```
+4. **Bootstrapped Administrator:**
+   - Log in with `abrar.noceng@gmail.com` to receive automatic Super Admin access.

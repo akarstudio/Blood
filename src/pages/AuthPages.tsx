@@ -8,7 +8,9 @@ import {
   CheckCircle, 
   ArrowLeft,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Copy,
+  Check
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { isValidEmail } from '../utils/validation';
@@ -28,13 +30,18 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
   const [error, setError] = useState<string | null>(null);
   const [isOperationNotAllowed, setIsOperationNotAllowed] = useState(false);
   const [isInvalidCredential, setIsInvalidCredential] = useState(false);
+  const [isUnauthorizedDomain, setIsUnauthorizedDomain] = useState(false);
+  const [copiedDomain, setCopiedDomain] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const currentHostname = typeof window !== 'undefined' ? window.location.hostname : '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsOperationNotAllowed(false);
     setIsInvalidCredential(false);
+    setIsUnauthorizedDomain(false);
     setSuccessMessage(null);
 
     if (!isValidEmail(email)) {
@@ -67,7 +74,10 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
     } catch (err: any) {
       console.error('Auth error:', err);
       let msg = 'Authentication operation failed.';
-      if (err.code === 'auth/operation-not-allowed') {
+      if (err.code === 'auth/unauthorized-domain') {
+        setIsUnauthorizedDomain(true);
+        msg = `Domain "${currentHostname || 'this domain'}" is not authorized for Firebase Authentication.`;
+      } else if (err.code === 'auth/operation-not-allowed') {
         setIsOperationNotAllowed(true);
         msg = 'Email/Password sign-in is not enabled in Firebase Console. Please use "Continue with Google" above, or enable Email/Password in the Firebase Console.';
       } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
@@ -91,13 +101,19 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
   const handleGoogleSignIn = async () => {
     setError(null);
     setIsOperationNotAllowed(false);
+    setIsUnauthorizedDomain(false);
     setLoading(true);
     try {
       await signInWithGoogle();
       onNavigate('home');
     } catch (err: any) {
       console.error('Google sign-in error:', err);
-      setError(err.message || 'Unable to sign in with Google.');
+      if (err.code === 'auth/unauthorized-domain') {
+        setIsUnauthorizedDomain(true);
+        setError(`Domain "${currentHostname || 'this domain'}" is not authorized for Firebase Authentication.`);
+      } else {
+        setError(err.message || 'Unable to sign in with Google.');
+      }
     } finally {
       setLoading(false);
     }
@@ -220,6 +236,80 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
                 >
                   Sign in with Google Instead
                 </button>
+              </div>
+            )}
+
+            {isUnauthorizedDomain && (
+              <div className="pt-2 border-t border-rose-200/60 text-[11px] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-rose-900 font-bold">Domain Not Whitelisted in Firebase</span>
+                </div>
+                <p className="text-rose-800 leading-relaxed">
+                  Firebase Authentication requires any domain your app is hosted on (e.g. Vercel) to be added to Authorized Domains for security.
+                </p>
+
+                <div className="bg-white/90 p-2.5 rounded-lg border border-rose-200 space-y-1.5 shadow-2xs">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-600 font-medium">Domain to authorize:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (currentHostname) {
+                          navigator.clipboard.writeText(currentHostname);
+                          setCopiedDomain(true);
+                          setTimeout(() => setCopiedDomain(false), 2500);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1 text-rose-700 hover:text-rose-900 font-semibold cursor-pointer"
+                    >
+                      {copiedDomain ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700 font-bold">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy domain</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="font-mono text-xs text-rose-950 bg-rose-50/80 px-2 py-1.5 rounded border border-rose-200 select-all font-semibold break-all">
+                    {currentHostname || 'your-project.vercel.app'}
+                  </div>
+                </div>
+
+                <div className="space-y-1 text-slate-700">
+                  <p className="font-semibold text-slate-900">3-Step Quick Fix in Firebase Console:</p>
+                  <ol className="list-decimal pl-4 space-y-1 text-slate-700">
+                    <li>Click <strong>Open Firebase Settings</strong> below.</li>
+                    <li>Scroll down to <strong>Authorized domains</strong> and click <strong>Add domain</strong>.</li>
+                    <li>Paste <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-[10px] text-slate-800">{currentHostname || 'your-project.vercel.app'}</code> and click <strong>Done/Save</strong>.</li>
+                  </ol>
+                  <p className="text-[10px] text-slate-500 italic pt-0.5">
+                    Takes effect immediately — no code re-deployment needed!
+                  </p>
+                </div>
+
+                <div className="pt-1 flex flex-col sm:flex-row gap-2">
+                  <a
+                    href="https://console.firebase.google.com/project/valiant-azimuth-472710-n7/authentication/settings"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="flex-1 py-2 px-3 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg transition-colors text-xs text-center inline-flex items-center justify-center gap-1.5 shadow-2xs"
+                  >
+                    <span>Open Firebase Settings</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    className="py-2 px-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-semibold rounded-lg transition-colors text-xs text-center cursor-pointer"
+                  >
+                    Try Again
+                  </button>
+                </div>
               </div>
             )}
           </div>
