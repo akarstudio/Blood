@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bloodDropGrad" x1="15%" y1="5%" x2="85%" y2="95%">
+      <stop offset="0%" stop-color="#FF3358"/>
+      <stop offset="45%" stop-color="#E11D48"/>
+      <stop offset="100%" stop-color="#881337"/>
+    </linearGradient>
+    <linearGradient id="highlightGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.0"/>
+    </linearGradient>
+    <filter id="subtleGlow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#881337" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Droplet Base with Soft Shadow -->
+  <path
+    d="M 32 4 C 32 4 12 28 12 41 C 12 52.046 20.954 61 32 61 C 43.046 61 52 52.046 52 41 C 52 28 32 4 32 4 Z"
+    fill="url(#bloodDropGrad)"
+    filter="url(#subtleGlow)"
+  />
+
+  <!-- Specular Reflection Highlight -->
+  <path
+    d="M 32 8 C 30 14 20 28 17 38 C 16 35 17 29 22 21 C 26 15 30 10 32 8 Z"
+    fill="url(#highlightGrad)"
+    opacity="0.75"
+  />
+
+  <!-- Medical Cross / Plus Emblem in Center -->
+  <g fill="#FFFFFF">
+    <!-- Vertical bar -->
+    <rect x="29" y="32" width="6" height="18" rx="2" ry="2"/>
+    <!-- Horizontal bar -->
+    <rect x="23" y="38" width="18" height="6" rx="2" ry="2"/>
+  </g>
+</svg>
