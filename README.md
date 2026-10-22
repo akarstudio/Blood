@@ -171,5 +171,3 @@ npm run dev
      ```bash
      firebase deploy --only firestore:rules
      ```
-3. **Bootstrapped Administrator:**
-   - Log in with `abrar.noceng@gmail.com` to receive automatic Super Admin access.
