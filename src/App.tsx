@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { Header } from './components/common/Header';
 import { Footer } from './components/common/Footer';
+import { MobileBottomBar } from './components/common/MobileBottomBar';
 import { HomePage } from './pages/HomePage';
 import { FindDonorsPage } from './pages/FindDonorsPage';
 import { RegisterDonorPage } from './pages/RegisterDonorPage';
@@ -54,7 +55,7 @@ export default function App() {
       <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans selection:bg-rose-100 selection:text-rose-900">
         <Header currentPage={currentPage} onNavigate={handleNavigate} />
 
-        <main className="flex-1">
+        <main className="flex-1 pb-16 md:pb-0">
           {currentPage === 'home' && <HomePage onNavigate={handleNavigate} />}
 
           {currentPage === 'find-donors' && (
@@ -97,6 +98,7 @@ export default function App() {
         </main>
 
         <Footer onNavigate={handleNavigate} />
+        <MobileBottomBar currentPage={currentPage} onNavigate={handleNavigate} />
       </div>
     </AuthProvider>
   );

@@ -19,7 +19,7 @@ interface InfoPageProps {
 
 export const InformationalPages: React.FC<InfoPageProps> = ({ page, onNavigate }) => {
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 space-y-12">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-12 space-y-8 sm:space-y-12">
       {/* 1. ABOUT PAGE */}
       {page === 'about' && (
         <div className="space-y-8">

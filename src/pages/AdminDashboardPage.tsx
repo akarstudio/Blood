@@ -110,6 +110,7 @@ export const AdminDashboardPage: React.FC<{ onNavigate: (page: string) => void }
   const [donorPage, setDonorPage] = useState(1);
   const donorPageSize = 10;
   const [selectedDonorDetail, setSelectedDonorDetail] = useState<Donor | null>(null);
+  const [donorMobileViewMode, setDonorMobileViewMode] = useState<'cards' | 'table'>('cards');
 
   // Reject dialog state
   const [rejectDialogDonor, setRejectDialogDonor] = useState<Donor | null>(null);
@@ -1301,10 +1302,10 @@ export const AdminDashboardPage: React.FC<{ onNavigate: (page: string) => void }
       )}
 
       {/* Navigation Tabs (Functional segmented buttons, not pill badge links) */}
-      <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg overflow-x-auto">
+      <div className="flex items-center gap-1.5 p-1.5 bg-slate-100 rounded-xl overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-1.5">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+          className={`px-3.5 py-2 text-xs font-medium rounded-lg transition-colors whitespace-nowrap shrink-0 min-h-[40px] ${
             activeTab === 'overview' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-600 hover:text-slate-900'
           }`}
         >
@@ -1541,19 +1542,151 @@ export const AdminDashboardPage: React.FC<{ onNavigate: (page: string) => void }
 
             <div className="flex items-center gap-2 self-end sm:self-auto">
               <button
+                type="button"
+                onClick={() => setDonorMobileViewMode((m) => (m === 'cards' ? 'table' : 'cards'))}
+                className="md:hidden px-2.5 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors flex items-center gap-1"
+                title="Toggle between Card view and Table view on mobile"
+              >
+                <span>View:</span>
+                <span className="text-rose-600 font-bold uppercase">{donorMobileViewMode}</span>
+              </button>
+              <button
                 onClick={() => loadDonors()}
                 className="px-3 py-1.5 font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors flex items-center gap-1.5"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                Refresh
+                <span>Refresh</span>
               </button>
             </div>
           </div>
 
-          {/* Donors Table */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+          {/* Mobile Donor Cards View (Shown on mobile when cards mode active) */}
+          {donorMobileViewMode === 'cards' && (
+            <div className="md:hidden space-y-3">
+              {donorsLoading ? (
+                <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-xs text-slate-400">
+                  Loading donor records from Firestore...
+                </div>
+              ) : paginatedDonors.length === 0 ? (
+                <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-xs text-slate-500">
+                  No donor records matching search criteria.
+                </div>
+              ) : (
+                paginatedDonors.map((donor) => (
+                  <div key={donor.id} className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-100 text-rose-700 font-bold flex items-center justify-center text-sm shadow-2xs">
+                          {donor.bloodGroup}
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-900">{donor.fullName}</h4>
+                          <p className="text-[11px] text-slate-400">{donor.email}</p>
+                        </div>
+                      </div>
+                      <StatusBadge status={donor.calculatedAvailability} type="availability" size="sm" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Location:</span>
+                        <span className="font-medium text-slate-800 truncate block">{donor.upazila}, {donor.district}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Phone:</span>
+                        <a href={`tel:${donor.phone}`} className="font-semibold text-rose-600 hover:underline">
+                          {formatBangladeshPhone(donor.phone)}
+                        </a>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Approval:</span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenStatusDialog(donor)}
+                          className="hover:opacity-80 text-left"
+                        >
+                          <StatusBadge status={donor.approvalStatus} type="approval" size="sm" />
+                        </button>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Verification:</span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenStatusDialog(donor, undefined, 'verified')}
+                          className="hover:opacity-80 text-left"
+                        >
+                          <StatusBadge status={donor.contactVerificationStatus} type="verification" size="sm" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons for Mobile Card */}
+                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
+                      {donor.approvalStatus !== 'approved' && hasPermission('donors.approve') && (
+                        <button
+                          onClick={() => handleApproveDonor(donor)}
+                          className="flex-1 min-h-[38px] py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1 shadow-2xs"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Approve</span>
+                        </button>
+                      )}
+
+                      {donor.contactVerificationStatus !== 'verified' && hasPermission('donors.approve') && (
+                        <button
+                          onClick={() => handleQuickApproveVerification(donor)}
+                          className="flex-1 min-h-[38px] py-1.5 px-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1 shadow-2xs"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>Verify</span>
+                        </button>
+                      )}
+
+                      {hasPermission('donors.approve') && (
+                        <button
+                          onClick={() => handleOpenStatusDialog(donor)}
+                          className="py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium min-h-[38px] flex items-center justify-center gap-1"
+                          title="Manage Status"
+                        >
+                          <Sliders className="w-3.5 h-3.5 text-slate-600" />
+                          <span>Status</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => setSelectedDonorDetail(donor)}
+                        className="py-1.5 px-3 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium min-h-[38px] flex items-center justify-center gap-1"
+                        title="View Details"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Details</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setEditDateDonor(donor);
+                          setNewDonationDate(donor.lastDonationDate || '');
+                        }}
+                        className="py-1.5 px-2.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium min-h-[38px] flex items-center justify-center"
+                        title="Edit Donation Date"
+                      >
+                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Donors Table (Always visible on desktop, or on mobile when table mode selected) */}
+          <div className={`bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs ${donorMobileViewMode === 'cards' ? 'hidden md:block' : 'block'}`}>
+            <div className="md:hidden text-[11px] text-slate-500 px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <span>Swipe horizontally to view all columns</span>
+              <span className="font-semibold text-rose-600">&rarr;</span>
+            </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-600">
+              <table className="w-full text-left text-xs text-slate-600 min-w-[780px]">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-800 font-semibold uppercase tracking-wider text-[11px]">
                   <tr>
                     <th className="py-3 px-4">Donor Name</th>

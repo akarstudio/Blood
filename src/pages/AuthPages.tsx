@@ -120,8 +120,8 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 py-16">
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 space-y-6">
+    <div className="max-w-md mx-auto px-4 py-8 sm:py-16">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-8 space-y-5 sm:space-y-6">
         {/* Brand Lockup */}
         <div className="text-center space-y-2">
           <div className="w-12 h-12 mx-auto rounded-xl bg-rose-600 flex items-center justify-center text-white shadow-xs">

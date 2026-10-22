@@ -214,10 +214,10 @@ export const MyProfilePage: React.FC<MyProfilePageProps> = ({ onNavigate }) => {
     : null;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-8">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-8">
       {/* Page Title */}
-      <div className="border-b border-slate-200 pb-5">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+      <div className="border-b border-slate-200 pb-4 sm:pb-5">
+        <h1 className="text-xl sm:text-3xl font-bold tracking-tight text-slate-900">
           My Donor Profile & Status
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">

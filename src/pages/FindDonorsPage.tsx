@@ -11,7 +11,10 @@ import {
   AlertCircle,
   Eye,
   CheckCircle2,
-  Users
+  Users,
+  ChevronDown,
+  ChevronUp,
+  SlidersHorizontal
 } from 'lucide-react';
 import { 
   collection, 
@@ -45,6 +48,7 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
   const [district, setDistrict] = useState<string>(initialFilters?.district || '');
   const [upazila, setUpazila] = useState<string>('');
   const [availabilityFilter, setAvailabilityFilter] = useState<'available_only' | 'all'>('available_only');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const [donors, setDonors] = useState<Donor[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -161,143 +165,224 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
   const totalPages = Math.ceil(donors.length / pageSize);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
       {/* Page Title & Context */}
-      <div className="border-b border-slate-200 pb-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="border-b border-slate-200 pb-4 sm:pb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+            <h1 className="text-xl sm:text-3xl font-bold tracking-tight text-slate-900">
               Find Blood Donors in Bangladesh
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Search approved voluntary donors. Profiles adhere to the {minimumIntervalMonths}-month calendar waiting interval.
+            <p className="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1">
+              Search approved voluntary donors. Enforcing the {minimumIntervalMonths}-month calendar waiting interval.
             </p>
           </div>
           <button
             onClick={() => onNavigate('register')}
-            className="self-start sm:self-auto px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs transition-colors"
+            className="self-stretch sm:self-auto px-4 py-2.5 sm:py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-lg shadow-xs transition-colors text-center min-h-[44px] flex items-center justify-center"
           >
             Register as a Donor
           </button>
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
+      {/* 1-Tap Quick Blood Group Selector Strip (Optimal for mobile emergency lookups) */}
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-            <Filter className="w-3.5 h-3.5 text-rose-600" />
-            Filter Donors
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            Quick Blood Group Filter
           </span>
-          <button
-            onClick={handleClearFilters}
-            className="text-xs font-medium text-slate-500 hover:text-slate-800 flex items-center gap-1 transition-colors"
-          >
-            <RotateCcw className="w-3 h-3" />
-            Clear Filters
-          </button>
+          {bloodGroup && (
+            <button
+              onClick={() => setBloodGroup('')}
+              className="text-[11px] font-medium text-rose-600 hover:text-rose-800"
+            >
+              Show All
+            </button>
+          )}
         </div>
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
+          <button
+            onClick={() => setBloodGroup('')}
+            className={`px-3 py-2 rounded-lg text-xs font-semibold shrink-0 transition-colors border min-h-[40px] flex items-center justify-center ${
+              bloodGroup === ''
+                ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            All Groups
+          </button>
+          {ALL_BLOOD_GROUPS.map((bg) => {
+            const isSelected = bloodGroup === bg;
+            return (
+              <button
+                key={bg}
+                onClick={() => setBloodGroup(isSelected ? '' : bg)}
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold shrink-0 transition-all border min-h-[40px] flex items-center justify-center gap-1 ${
+                  isSelected
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs scale-105'
+                    : 'bg-white text-slate-700 border-slate-200 hover:border-rose-300 hover:text-rose-700'
+                }`}
+              >
+                <Droplet className={`w-3 h-3 ${isSelected ? 'fill-white' : 'text-rose-500'}`} />
+                <span>{bg}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-          {/* Blood group */}
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Blood Group</label>
-            <select
-              value={bloodGroup}
-              onChange={(e) => setBloodGroup(e.target.value)}
-              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white text-slate-800"
-            >
-              <option value="">Any Blood Group</option>
-              {ALL_BLOOD_GROUPS.map((bg) => (
-                <option key={bg} value={bg}>
-                  {bg}
-                </option>
-              ))}
-            </select>
+      {/* Filter Bar with Mobile Collapsible Accordion */}
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-4 sm:p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-rose-600" />
+              <span>Location & Availability</span>
+            </span>
+            {/* Active filters count badge */}
+            {(division || district || upazila || availabilityFilter === 'available_only') && (
+              <span className="text-[10px] bg-rose-50 text-rose-700 font-semibold px-2 py-0.5 rounded-full border border-rose-100">
+                Active
+              </span>
+            )}
           </div>
 
-          {/* Division */}
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Division</label>
-            <select
-              value={division}
-              onChange={(e) => {
-                setDivision(e.target.value);
-                setDistrict('');
-                setUpazila('');
-              }}
-              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white text-slate-800"
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleClearFilters}
+              className="text-xs font-medium text-slate-500 hover:text-slate-800 flex items-center gap-1 transition-colors"
             >
-              <option value="">All Divisions</option>
-              {BANGLADESH_DIVISIONS.map((d) => (
-                <option key={d.name} value={d.name}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset</span>
+            </button>
 
-          {/* District */}
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">District</label>
-            <select
-              value={district}
-              onChange={(e) => {
-                setDistrict(e.target.value);
-                setUpazila('');
-              }}
-              disabled={!division}
-              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white text-slate-800 disabled:bg-slate-50 disabled:text-slate-400"
+            {/* Toggle button on mobile */}
+            <button
+              onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
+              className="md:hidden flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg min-h-[36px]"
+              aria-expanded={mobileFiltersOpen}
             >
-              <option value="">All Districts</option>
-              {districts.map((dst) => (
-                <option key={dst.name} value={dst.name}>
-                  {dst.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Upazila */}
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Upazila / Area</label>
-            <select
-              value={upazila}
-              onChange={(e) => setUpazila(e.target.value)}
-              disabled={!district}
-              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white text-slate-800 disabled:bg-slate-50 disabled:text-slate-400"
-            >
-              <option value="">All Upazilas</option>
-              {upazilas.map((upz) => (
-                <option key={upz} value={upz}>
-                  {upz}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Availability Status Filter */}
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Availability Status</label>
-            <select
-              value={availabilityFilter}
-              onChange={(e) => setAvailabilityFilter(e.target.value as any)}
-              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white text-slate-800"
-            >
-              <option value="available_only">Available Donors Only</option>
-              <option value="all">All Verified Donors</option>
-            </select>
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>{mobileFiltersOpen ? 'Hide' : 'Refine'}</span>
+              {mobileFiltersOpen ? (
+                <ChevronUp className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" />
+              )}
+            </button>
           </div>
         </div>
 
-        <div className="pt-2 flex justify-end">
-          <button
-            onClick={() => searchDonors()}
-            className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs"
-          >
-            <Search className="w-3.5 h-3.5" />
-            Apply Filters
-          </button>
+        {/* Filter fields: Always visible on desktop (md), collapsible on mobile */}
+        <div className={`space-y-4 ${mobileFiltersOpen ? 'block' : 'hidden md:block'}`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+            {/* Blood group */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Blood Group</label>
+              <select
+                value={bloodGroup}
+                onChange={(e) => setBloodGroup(e.target.value)}
+                className="w-full px-3 py-2.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white text-slate-800 min-h-[42px]"
+              >
+                <option value="">Any Blood Group</option>
+                {ALL_BLOOD_GROUPS.map((bg) => (
+                  <option key={bg} value={bg}>
+                    {bg}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Division */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Division</label>
+              <select
+                value={division}
+                onChange={(e) => {
+                  setDivision(e.target.value);
+                  setDistrict('');
+                  setUpazila('');
+                }}
+                className="w-full px-3 py-2.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white text-slate-800 min-h-[42px]"
+              >
+                <option value="">All Divisions</option>
+                {BANGLADESH_DIVISIONS.map((d) => (
+                  <option key={d.name} value={d.name}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* District */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">District</label>
+              <select
+                value={district}
+                onChange={(e) => {
+                  setDistrict(e.target.value);
+                  setUpazila('');
+                }}
+                disabled={!division}
+                className="w-full px-3 py-2.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white text-slate-800 disabled:bg-slate-50 disabled:text-slate-400 min-h-[42px]"
+              >
+                <option value="">All Districts</option>
+                {districts.map((dst) => (
+                  <option key={dst.name} value={dst.name}>
+                    {dst.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Upazila */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Upazila / Area</label>
+              <select
+                value={upazila}
+                onChange={(e) => setUpazila(e.target.value)}
+                disabled={!district}
+                className="w-full px-3 py-2.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white text-slate-800 disabled:bg-slate-50 disabled:text-slate-400 min-h-[42px]"
+              >
+                <option value="">All Upazilas</option>
+                {upazilas.map((upz) => (
+                  <option key={upz} value={upz}>
+                    {upz}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Availability Status Filter */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Availability Status</label>
+              <select
+                value={availabilityFilter}
+                onChange={(e) => setAvailabilityFilter(e.target.value as any)}
+                className="w-full px-3 py-2.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white text-slate-800 min-h-[42px]"
+              >
+                <option value="available_only">Available Donors Only</option>
+                <option value="all">All Verified Donors</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-slate-100">
+            <span className="text-[11px] text-slate-500">
+              Only showing contact-verified &amp; active donors
+            </span>
+            <button
+              onClick={() => {
+                searchDonors();
+                setMobileFiltersOpen(false);
+              }}
+              className="w-full sm:w-auto px-5 py-2.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-2xs min-h-[42px]"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>Apply Filters</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -419,19 +504,20 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
                 <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
                   <button
                     onClick={() => setSelectedDonor(donor)}
-                    className="flex-1 py-2 px-3 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                    className="flex-1 py-2.5 px-3 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 rounded-lg transition-colors flex items-center justify-center gap-1.5 min-h-[44px]"
                   >
-                    <Eye className="w-3.5 h-3.5 text-slate-500" />
+                    <Eye className="w-4 h-4 text-slate-500" />
                     <span>View Profile</span>
                   </button>
 
                   {hasPhone ? (
                     <a
                       href={`tel:${donor.phone}`}
-                      className="p-2 text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 transition-colors"
-                      title="Call Donor"
+                      className="px-3.5 py-2.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 rounded-lg border border-rose-200 transition-colors flex items-center justify-center gap-1.5 min-h-[44px] shrink-0"
+                      title="Call Donor directly"
                     >
                       <Phone className="w-4 h-4" />
+                      <span className="text-xs">Call</span>
                     </a>
                   ) : null}
                 </div>

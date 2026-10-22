@@ -318,7 +318,18 @@ export const RegisterDonorPage: React.FC<RegisterDonorPageProps> = ({ onNavigate
       )}
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-xs border border-slate-200 p-6 sm:p-8 space-y-8">
+      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-xs border border-slate-200 p-4 sm:p-8 space-y-6 sm:space-y-8">
+        {/* Mobile Quick Form Step Indicator */}
+        <div className="md:hidden flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px] font-medium text-slate-500">
+          <span className="bg-rose-50 text-rose-700 font-bold px-2 py-1 rounded-md shrink-0 border border-rose-100">1. Personal</span>
+          <span className="text-slate-300">&rarr;</span>
+          <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded-md shrink-0">2. Account</span>
+          <span className="text-slate-300">&rarr;</span>
+          <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded-md shrink-0">3. Blood &amp; Area</span>
+          <span className="text-slate-300">&rarr;</span>
+          <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded-md shrink-0">4. Consents</span>
+        </div>
+
         {/* Personal Details */}
         <div className="space-y-4">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
@@ -662,7 +673,7 @@ export const RegisterDonorPage: React.FC<RegisterDonorPageProps> = ({ onNavigate
           <button
             type="submit"
             disabled={submitting}
-            className="w-full sm:w-auto px-6 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full sm:w-auto px-6 py-3 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-lg shadow-xs transition-colors disabled:opacity-50 flex items-center justify-center gap-2 min-h-[46px]"
           >
             {submitting ? 'Validating & Registering...' : 'Complete Donor Registration'}
           </button>
