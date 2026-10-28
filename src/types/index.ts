@@ -77,6 +77,8 @@ export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
+  phone?: string;
+  normalizedPhone?: string;
   roleIds: string[];
   accountStatus: AccountStatus;
   createdAt: string;

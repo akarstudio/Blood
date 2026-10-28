@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   Search, 
   Filter, 
@@ -14,7 +14,9 @@ import {
   Users,
   ChevronDown,
   ChevronUp,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Lock,
+  LogIn
 } from 'lucide-react';
 import { 
   collection, 
@@ -32,6 +34,7 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { Pagination } from '../components/common/Pagination';
 import { DonorProfileModal } from '../components/donor/DonorProfileModal';
 import { calculateDonorAvailability, formatBangladeshDateOnly, formatBangladeshPhone } from '../utils/availability';
+import { useAuth } from '../context/AuthContext';
 
 interface FindDonorsPageProps {
   initialFilters?: {
@@ -43,14 +46,30 @@ interface FindDonorsPageProps {
 }
 
 export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, onNavigate }) => {
+  const { user } = useAuth();
+  const isAuthenticated = Boolean(user);
+
   const [bloodGroup, setBloodGroup] = useState<string>(initialFilters?.bloodGroup || '');
   const [division, setDivision] = useState<string>(initialFilters?.division || '');
   const [district, setDistrict] = useState<string>(initialFilters?.district || '');
   const [upazila, setUpazila] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [availabilityFilter, setAvailabilityFilter] = useState<'available_only' | 'all'>('available_only');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const bloodGroupContainerRef = useRef<HTMLDivElement>(null);
+  const bloodGroupRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  const [donors, setDonors] = useState<Donor[]>([]);
+  useEffect(() => {
+    if (bloodGroup && bloodGroupRefs.current[bloodGroup]) {
+      bloodGroupRefs.current[bloodGroup]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'center',
+      });
+    }
+  }, [bloodGroup]);
+
+  const [rawDonors, setRawDonors] = useState<Donor[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDonor, setSelectedDonor] = useState<Donor | null>(null);
@@ -58,7 +77,6 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
   const pageSize = 8;
-  const [totalCount, setTotalCount] = useState<number>(0);
 
   // System availability policy
   const [minimumIntervalMonths, setMinimumIntervalMonths] = useState<number>(3);
@@ -81,79 +99,120 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
     loadPolicy();
   }, []);
 
-  const searchDonors = useCallback(async () => {
+  // Authoritative Firestore Query: Fetches donors using compound indices
+  const fetchDonorsFromFirestore = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Build secured Firestore query: Only approved, verified, active donors
-      const constraints: any[] = [
-        where('approvalStatus', '==', 'approved'),
-        where('contactVerificationStatus', '==', 'verified'),
-        where('accountStatus', '==', 'active')
-      ];
+      let snapshot;
+      try {
+        const constraints: any[] = [
+          where('approvalStatus', '==', 'approved'),
+          where('contactVerificationStatus', '==', 'verified'),
+          where('accountStatus', '==', 'active')
+        ];
 
-      if (bloodGroup) {
-        constraints.push(where('bloodGroup', '==', bloodGroup));
-      }
-      if (division) {
-        constraints.push(where('division', '==', division));
-      }
-      if (district) {
-        constraints.push(where('district', '==', district));
-      }
-      if (upazila) {
-        constraints.push(where('upazila', '==', upazila));
+        if (bloodGroup) {
+          constraints.push(where('bloodGroup', '==', bloodGroup));
+        }
+
+        constraints.push(limit(500));
+        const q = query(collection(db, 'donors'), ...constraints);
+        snapshot = await getDocs(q);
+      } catch (compoundErr) {
+        console.warn('Using resilient index fallback for donor search:', compoundErr);
+        const fallbackQ = query(
+          collection(db, 'donors'),
+          where('approvalStatus', '==', 'approved'),
+          where('contactVerificationStatus', '==', 'verified'),
+          where('accountStatus', '==', 'active'),
+          limit(500)
+        );
+        snapshot = await getDocs(fallbackQ);
       }
 
-      // Safe limit on results to avoid client overload
-      constraints.push(limit(50));
-
-      const q = query(collection(db, 'donors'), ...constraints);
-      const snapshot = await getDocs(q);
-
-      const loadedDonors: Donor[] = [];
+      const list: Donor[] = [];
       snapshot.forEach((d) => {
         const data = d.data() as Donor;
-        // Calculate authoritative availability using the centralized policy
-        const calcResult = calculateDonorAvailability(data, minimumIntervalMonths);
-        const recalculatedDonor: Donor = {
-          ...data,
-          id: d.id,
-          calculatedAvailability: calcResult.calculatedAvailability,
-          eligibilityDate: calcResult.eligibilityDate || data.eligibilityDate,
-        };
-
-        // Filter by availability if requested
-        if (availabilityFilter === 'available_only') {
-          if (calcResult.isAvailable) {
-            loadedDonors.push(recalculatedDonor);
-          }
-        } else {
-          loadedDonors.push(recalculatedDonor);
+        if (bloodGroup && data.bloodGroup !== bloodGroup) {
+          return;
         }
+        list.push({ ...data, id: d.id });
       });
 
-      setTotalCount(loadedDonors.length);
-      setDonors(loadedDonors);
-      setCurrentPage(1);
+      setRawDonors(list);
     } catch (err: any) {
-      console.error('Error fetching donors:', err);
+      console.error('Error fetching donors from Firestore:', err);
       setError('Unable to load donor records. Please verify search parameters or network connection.');
     } finally {
       setLoading(false);
     }
-  }, [bloodGroup, division, district, upazila, availabilityFilter, minimumIntervalMonths]);
+  }, [bloodGroup]);
 
   useEffect(() => {
-    searchDonors();
-  }, [searchDonors]);
+    fetchDonorsFromFirestore();
+  }, [fetchDonorsFromFirestore]);
+
+  // High-performance instant in-memory query evaluation (0ms search latency)
+  const filteredDonors = useMemo(() => {
+    const cleanSearch = searchQuery.trim().toLowerCase();
+    const normDiv = division.trim().toLowerCase();
+    const normDist = district.trim().toLowerCase();
+    const normUpz = upazila.trim().toLowerCase();
+
+    const list: Donor[] = [];
+
+    for (const data of rawDonors) {
+      // 1. Geographical matching
+      if (normDiv && data.division?.trim().toLowerCase() !== normDiv) continue;
+      if (normDist && data.district?.trim().toLowerCase() !== normDist) continue;
+      if (normUpz && data.upazila?.trim().toLowerCase() !== normUpz) continue;
+
+      // 2. Multi-field keyword query (phone search requires authentication)
+      if (cleanSearch) {
+        const matchName = data.fullName?.toLowerCase().includes(cleanSearch);
+        const matchPhone = isAuthenticated && Boolean(data.phone?.includes(cleanSearch));
+        const matchEmail = data.email?.toLowerCase().includes(cleanSearch);
+        const matchUpz = data.upazila?.toLowerCase().includes(cleanSearch);
+        const matchDist = data.district?.toLowerCase().includes(cleanSearch);
+        const matchNotes = data.additionalNotes?.toLowerCase().includes(cleanSearch);
+        if (!matchName && !matchPhone && !matchEmail && !matchUpz && !matchDist && !matchNotes) {
+          continue;
+        }
+      }
+
+      // 3. Centralized calculation engine
+      const calcResult = calculateDonorAvailability(data, minimumIntervalMonths);
+      const recalculatedDonor: Donor = {
+        ...data,
+        calculatedAvailability: calcResult.calculatedAvailability,
+        eligibilityDate: calcResult.eligibilityDate || data.eligibilityDate,
+      };
+
+      if (availabilityFilter === 'available_only') {
+        if (calcResult.isAvailable) {
+          list.push(recalculatedDonor);
+        }
+      } else {
+        list.push(recalculatedDonor);
+      }
+    }
+
+    return list;
+  }, [rawDonors, division, district, upazila, searchQuery, availabilityFilter, minimumIntervalMonths, isAuthenticated]);
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [bloodGroup, division, district, upazila, searchQuery, availabilityFilter]);
 
   const handleClearFilters = () => {
     setBloodGroup('');
     setDivision('');
     setDistrict('');
     setUpazila('');
+    setSearchQuery('');
     setAvailabilityFilter('available_only');
   };
 
@@ -161,8 +220,8 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
   const upazilas = division && district ? getUpazilasForDistrict(division, district) : [];
 
   // Client-side window for current page
-  const paginatedDonors = donors.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const totalPages = Math.ceil(donors.length / pageSize);
+  const paginatedDonors = filteredDonors.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const totalPages = Math.ceil(filteredDonors.length / pageSize);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
@@ -186,49 +245,72 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
         </div>
       </div>
 
-      {/* 1-Tap Quick Blood Group Selector Strip (Optimal for mobile emergency lookups) */}
+      {/* Responsive Blood Group Tab Filter (Grid on tablet/desktop, smooth scrolling strip on mobile) */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-            Quick Blood Group Filter
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Blood Group Quick Filter
+            </span>
+            {bloodGroup && (
+              <span className="text-[10px] font-bold bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full border border-rose-200">
+                Filtered: {bloodGroup}
+              </span>
+            )}
+          </div>
           {bloodGroup && (
             <button
               onClick={() => setBloodGroup('')}
-              className="text-[11px] font-medium text-rose-600 hover:text-rose-800"
+              className="text-[11px] font-semibold text-rose-600 hover:text-rose-800 transition-colors p-1"
             >
-              Show All
+              Reset to All
             </button>
           )}
         </div>
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
-          <button
-            onClick={() => setBloodGroup('')}
-            className={`px-3 py-2 rounded-lg text-xs font-semibold shrink-0 transition-colors border min-h-[40px] flex items-center justify-center ${
-              bloodGroup === ''
-                ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
-                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-            }`}
+
+        {/* Tab strip: Mobile horizontal scrolling with touch cues, Tablet/Desktop responsive 9-col segmented grid */}
+        <div className="relative">
+          <div
+            ref={bloodGroupContainerRef}
+            role="tablist"
+            aria-label="Filter donors by blood group"
+            className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-5 md:grid-cols-9 sm:gap-2 py-1"
           >
-            All Groups
-          </button>
-          {ALL_BLOOD_GROUPS.map((bg) => {
-            const isSelected = bloodGroup === bg;
-            return (
-              <button
-                key={bg}
-                onClick={() => setBloodGroup(isSelected ? '' : bg)}
-                className={`px-3.5 py-2 rounded-lg text-xs font-bold shrink-0 transition-all border min-h-[40px] flex items-center justify-center gap-1 ${
-                  isSelected
-                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs scale-105'
-                    : 'bg-white text-slate-700 border-slate-200 hover:border-rose-300 hover:text-rose-700'
-                }`}
-              >
-                <Droplet className={`w-3 h-3 ${isSelected ? 'fill-white' : 'text-rose-500'}`} />
-                <span>{bg}</span>
-              </button>
-            );
-          })}
+            <button
+              ref={(el) => { bloodGroupRefs.current['ALL'] = el; }}
+              role="tab"
+              aria-selected={bloodGroup === ''}
+              onClick={() => setBloodGroup('')}
+              className={`px-3 py-2.5 rounded-xl text-xs font-bold shrink-0 transition-all border min-h-[44px] flex items-center justify-center gap-1.5 focus:outline-hidden focus:ring-2 focus:ring-rose-500 ${
+                bloodGroup === ''
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <span>All Groups</span>
+            </button>
+
+            {ALL_BLOOD_GROUPS.map((bg) => {
+              const isSelected = bloodGroup === bg;
+              return (
+                <button
+                  key={bg}
+                  ref={(el) => { bloodGroupRefs.current[bg] = el; }}
+                  role="tab"
+                  aria-selected={isSelected}
+                  onClick={() => setBloodGroup(isSelected ? '' : bg)}
+                  className={`px-3 py-2.5 rounded-xl text-xs font-bold shrink-0 transition-all border min-h-[44px] flex items-center justify-center gap-1.5 focus:outline-hidden focus:ring-2 focus:ring-rose-500 ${
+                    isSelected
+                      ? 'bg-rose-600 text-white border-rose-600 shadow-xs ring-2 ring-rose-200'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-rose-300 hover:text-rose-700 hover:bg-rose-50/40'
+                  }`}
+                >
+                  <Droplet className={`w-3.5 h-3.5 ${isSelected ? 'fill-white text-white' : 'text-rose-500'}`} />
+                  <span>{bg}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -276,6 +358,32 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
 
         {/* Filter fields: Always visible on desktop (md), collapsible on mobile */}
         <div className={`space-y-4 ${mobileFiltersOpen ? 'block' : 'hidden md:block'}`}>
+          {/* Direct Search Bar */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={
+                isAuthenticated
+                  ? "Search donors by name, area, mobile phone, or keywords..."
+                  : "Search donors by name, division, district, or area..."
+              }
+              className="w-full pl-10 pr-9 py-2.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-slate-50/50 hover:bg-white text-slate-900 placeholder:text-slate-400 min-h-[42px] transition-colors"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-3 text-slate-400 hover:text-slate-700 text-xs font-bold w-4 h-4 flex items-center justify-center rounded-full bg-slate-100"
+                aria-label="Clear search text"
+              >
+                ×
+              </button>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
             {/* Blood group */}
             <div>
@@ -354,17 +462,39 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
               </select>
             </div>
 
-            {/* Availability Status Filter */}
+            {/* Availability Status Filter (Segmented responsive tabs) */}
             <div>
               <label className="block text-[11px] font-semibold text-slate-600 mb-1">Availability Status</label>
-              <select
-                value={availabilityFilter}
-                onChange={(e) => setAvailabilityFilter(e.target.value as any)}
-                className="w-full px-3 py-2.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white text-slate-800 min-h-[42px]"
-              >
-                <option value="available_only">Available Donors Only</option>
-                <option value="all">All Verified Donors</option>
-              </select>
+              <div role="tablist" aria-label="Availability Status" className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={availabilityFilter === 'available_only'}
+                  onClick={() => setAvailabilityFilter('available_only')}
+                  className={`py-2 px-2 text-[11px] font-semibold rounded-lg transition-all min-h-[42px] flex items-center justify-center text-center gap-1.5 focus:outline-hidden focus:ring-2 focus:ring-rose-500 ${
+                    availabilityFilter === 'available_only'
+                      ? 'bg-white text-emerald-800 shadow-2xs font-bold ring-1 ring-slate-200/80'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Available Only</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={availabilityFilter === 'all'}
+                  onClick={() => setAvailabilityFilter('all')}
+                  className={`py-2 px-2 text-[11px] font-semibold rounded-lg transition-all min-h-[42px] flex items-center justify-center text-center gap-1.5 focus:outline-hidden focus:ring-2 focus:ring-rose-500 ${
+                    availabilityFilter === 'all'
+                      ? 'bg-white text-slate-900 shadow-2xs font-bold ring-1 ring-slate-200/80'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  <span>All Verified</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -374,7 +504,7 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
             </span>
             <button
               onClick={() => {
-                searchDonors();
+                fetchDonorsFromFirestore();
                 setMobileFiltersOpen(false);
               }}
               className="w-full sm:w-auto px-5 py-2.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-2xs min-h-[42px]"
@@ -386,10 +516,45 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
         </div>
       </div>
 
+      {/* Privacy Status & Phone Protection Banner */}
+      {!isAuthenticated ? (
+        <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+          <div className="flex items-start gap-3 text-amber-950">
+            <div className="p-2 bg-amber-100/90 rounded-lg text-amber-800 shrink-0 mt-0.5">
+              <Lock className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold block text-sm sm:text-xs text-amber-900">
+                Donor Phone Numbers are Protected
+              </span>
+              <span className="text-amber-800 text-[11px] leading-relaxed">
+                Direct phone numbers are shielded to protect voluntary blood donors from spam. Sign in to your free account to view contact numbers and call donors.
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate('signin')}
+            className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-lg shadow-2xs transition-colors shrink-0 flex items-center justify-center gap-1.5 min-h-[38px]"
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>Sign In to View Numbers</span>
+          </button>
+        </div>
+      ) : (
+        <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl px-4 py-2.5 flex items-center justify-between gap-2 text-xs text-emerald-950 shadow-2xs">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              Signed in as <strong className="text-emerald-900">{user?.email}</strong> &bull; Direct phone numbers and WhatsApp contact are unlocked.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Results Header */}
       <div className="flex items-center justify-between text-xs text-slate-500 px-1">
         <div>
-          Found <span className="font-semibold text-slate-900 tabular-nums">{donors.length}</span> verified donors matching criteria
+          Found <span className="font-semibold text-slate-900 tabular-nums">{filteredDonors.length}</span> verified donors matching criteria
         </div>
         <div className="text-[11px] text-slate-400">
           Enforcing {minimumIntervalMonths}-month interval
@@ -423,7 +588,7 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
             <p className="font-semibold">Unable to Complete Search</p>
             <p className="mt-0.5 text-rose-700">{error}</p>
             <button
-              onClick={() => searchDonors()}
+              onClick={() => fetchDonorsFromFirestore()}
               className="mt-2 font-semibold underline hover:text-rose-900"
             >
               Retry Search
@@ -433,7 +598,7 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
       )}
 
       {/* Empty State */}
-      {!loading && !error && donors.length === 0 && (
+      {!loading && !error && filteredDonors.length === 0 && (
         <div className="bg-white rounded-xl border border-slate-200 p-12 text-center space-y-4 max-w-lg mx-auto">
           <div className="w-12 h-12 mx-auto rounded-full bg-rose-50 text-rose-600 flex items-center justify-center">
             <Droplet className="w-6 h-6" />
@@ -492,6 +657,20 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
                     <span>{donor.division} Division</span>
                   </div>
 
+                  {/* Demographic & Contact Badges */}
+                  <div className="flex flex-wrap items-center gap-1 pt-1">
+                    {donor.gender && donor.gender !== 'unspecified' && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-600 capitalize">
+                        {donor.gender}
+                      </span>
+                    )}
+                    {donor.preferredContactMethod && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-rose-50 text-rose-700 capitalize">
+                        {donor.preferredContactMethod}
+                      </span>
+                    )}
+                  </div>
+
                   {donor.lastDonationDate && donor.publicProfileConsent && (
                     <div className="text-[11px] text-slate-500 pt-1 flex items-center gap-1">
                       <Calendar className="w-3 h-3 text-slate-400" />
@@ -501,25 +680,47 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
                 </div>
 
                 {/* Actions */}
-                <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
+                <div className="pt-3 border-t border-slate-100 flex items-center gap-1.5">
                   <button
                     onClick={() => setSelectedDonor(donor)}
-                    className="flex-1 py-2.5 px-3 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 rounded-lg transition-colors flex items-center justify-center gap-1.5 min-h-[44px]"
+                    className="flex-1 py-2 px-2.5 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 rounded-lg transition-colors flex items-center justify-center gap-1.5 min-h-[42px]"
                   >
                     <Eye className="w-4 h-4 text-slate-500" />
-                    <span>View Profile</span>
+                    <span>Profile</span>
                   </button>
 
-                  {hasPhone ? (
-                    <a
-                      href={`tel:${donor.phone}`}
-                      className="px-3.5 py-2.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 rounded-lg border border-rose-200 transition-colors flex items-center justify-center gap-1.5 min-h-[44px] shrink-0"
-                      title="Call Donor directly"
+                  {isAuthenticated ? (
+                    hasPhone ? (
+                      <>
+                        <a
+                          href={`tel:${donor.phone}`}
+                          className="px-3 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 rounded-lg border border-rose-200 transition-colors flex items-center justify-center gap-1 min-h-[42px] shrink-0"
+                          title="Call Donor directly"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                          <span>Call</span>
+                        </a>
+                        <a
+                          href={`https://wa.me/88${donor.phone.replace(/^0/, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 rounded-lg border border-emerald-200 transition-colors flex items-center justify-center min-h-[42px] shrink-0"
+                          title="WhatsApp Chat"
+                        >
+                          WA
+                        </a>
+                      </>
+                    ) : null
+                  ) : (
+                    <button
+                      onClick={() => onNavigate('signin')}
+                      className="px-2.5 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 rounded-lg border border-rose-200 transition-colors flex items-center justify-center gap-1 min-h-[42px] shrink-0"
+                      title="Sign in to view phone number and call donor directly"
                     >
-                      <Phone className="w-4 h-4" />
-                      <span className="text-xs">Call</span>
-                    </a>
-                  ) : null}
+                      <Lock className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Sign In</span>
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -528,11 +729,11 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
       )}
 
       {/* Pagination */}
-      {!loading && donors.length > 0 && (
+      {!loading && filteredDonors.length > 0 && (
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
-          totalItems={donors.length}
+          totalItems={filteredDonors.length}
           pageSize={pageSize}
           onPageChange={(page) => setCurrentPage(page)}
         />
@@ -542,6 +743,7 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
       <DonorProfileModal
         donor={selectedDonor}
         onClose={() => setSelectedDonor(null)}
+        onNavigate={onNavigate}
       />
     </div>
   );

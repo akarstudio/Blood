@@ -10,10 +10,16 @@ import {
   Sparkles,
   ExternalLink,
   Copy,
-  Check
+  Check,
+  ShieldAlert,
+  Info,
+  UserPlus
 } from 'lucide-react';
+import { fetchSignInMethodsForEmail } from 'firebase/auth';
+import { auth, db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import { isValidEmail } from '../utils/validation';
+import { checkEmailIdentifierExists } from '../services/dataSyncService';
 
 interface AuthPagesProps {
   mode: 'signin' | 'signup' | 'forgot';
@@ -28,17 +34,50 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isNotRegistered, setIsNotRegistered] = useState(false);
   const [isOperationNotAllowed, setIsOperationNotAllowed] = useState(false);
   const [isInvalidCredential, setIsInvalidCredential] = useState(false);
   const [isUnauthorizedDomain, setIsUnauthorizedDomain] = useState(false);
   const [copiedDomain, setCopiedDomain] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Real-time Firebase Authentication Identifier verification state
+  const [identifierStatus, setIdentifierStatus] = useState<'idle' | 'checking' | 'matched' | 'not_registered'>('idle');
+
   const currentHostname = typeof window !== 'undefined' ? window.location.hostname : '';
+
+  // Check email identifier in Firebase Authentication / registeredIdentifiers
+  const checkEmailIdentifier = async (emailToCheck: string) => {
+    const cleanEmail = emailToCheck.trim().toLowerCase();
+    if (!cleanEmail || !isValidEmail(cleanEmail) || mode !== 'signin') {
+      setIdentifierStatus('idle');
+      return;
+    }
+
+    setIdentifierStatus('checking');
+    try {
+      const exists = await checkEmailIdentifierExists(db, cleanEmail);
+      if (exists) {
+        setIdentifierStatus('matched');
+        setIsNotRegistered(false);
+      } else {
+        setIdentifierStatus('not_registered');
+      }
+    } catch {
+      setIdentifierStatus('idle');
+    }
+  };
+
+  const handleEmailBlur = () => {
+    if (mode === 'signin' && email.trim() && isValidEmail(email.trim())) {
+      checkEmailIdentifier(email);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setIsNotRegistered(false);
     setIsOperationNotAllowed(false);
     setIsInvalidCredential(false);
     setIsUnauthorizedDomain(false);
@@ -49,6 +88,8 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
       return;
     }
 
+    const cleanEmail = email.trim();
+
     setLoading(true);
     try {
       if (mode === 'signin') {
@@ -57,22 +98,47 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
           setLoading(false);
           return;
         }
-        await signIn(email.trim(), password);
+        if (password.length < 6) {
+          setError('Password must be at least 6 characters.');
+          setLoading(false);
+          return;
+        }
+
+        // Fast-check whether this email is an Identifier in Firebase Authentication
+        const existsInIdentifierIndex = await checkEmailIdentifierExists(db, cleanEmail);
+        if (!existsInIdentifierIndex) {
+          setIdentifierStatus('not_registered');
+          setIsNotRegistered(true);
+          setError('You Need to Register as Donor');
+          setLoading(false);
+          return;
+        }
+
+        await signIn(cleanEmail, password);
         onNavigate('home');
       } else if (mode === 'signup') {
+        if (!displayName.trim()) {
+          setError('Please provide your full name.');
+          setLoading(false);
+          return;
+        }
         if (!password || password.length < 6) {
           setError('Password must be at least 6 characters.');
           setLoading(false);
           return;
         }
-        await signUp(email.trim(), password, displayName.trim());
+        await signUp(cleanEmail, password, displayName.trim());
         onNavigate('home');
       } else if (mode === 'forgot') {
-        await sendPasswordReset(email.trim());
-        setSuccessMessage('Password reset instructions have been sent to your email.');
+        await sendPasswordReset(cleanEmail);
+        setSuccessMessage(`Password reset instructions have been sent to ${cleanEmail}. Please check your inbox and spam folder.`);
       }
     } catch (err: any) {
-      console.error('Auth error:', err);
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+        console.warn('Sign-in rejected with invalid credentials:', err.code);
+      } else {
+        console.error('Auth error:', err);
+      }
       let msg = 'Authentication operation failed.';
       if (err.code === 'auth/unauthorized-domain') {
         setIsUnauthorizedDomain(true);
@@ -80,9 +146,20 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
       } else if (err.code === 'auth/operation-not-allowed') {
         setIsOperationNotAllowed(true);
         msg = 'Email/Password sign-in is not enabled in Firebase Console. Please use "Continue with Google" above, or enable Email/Password in the Firebase Console.';
-      } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+        // Double check if identifier exists
+        const exists = await checkEmailIdentifierExists(db, cleanEmail).catch(() => false);
+        if (!exists) {
+          setIdentifierStatus('not_registered');
+          setIsNotRegistered(true);
+          msg = 'You Need to Register as Donor';
+        } else {
+          setIsInvalidCredential(true);
+          msg = 'Incorrect password for registered account.';
+        }
+      } else if (err.code === 'auth/wrong-password') {
         setIsInvalidCredential(true);
-        msg = 'Incorrect password or account not found for this email address.';
+        msg = 'Incorrect password for this email address.';
       } else if (err.code === 'auth/email-already-in-use') {
         msg = 'An account with this email address already exists. Please sign in instead.';
       } else if (err.code === 'auth/weak-password') {
@@ -123,6 +200,7 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
     <div className="max-w-md mx-auto px-4 py-8 sm:py-16">
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-8 space-y-5 sm:space-y-6">
         {/* Brand Lockup */}
+        {/* Brand Lockup */}
         <div className="text-center space-y-2">
           <div className="w-12 h-12 mx-auto rounded-xl bg-rose-600 flex items-center justify-center text-white shadow-xs">
             <Droplet className="w-7 h-7 fill-current" />
@@ -133,11 +211,30 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
             {mode === 'forgot' && 'Reset Your Password'}
           </h1>
           <p className="text-xs text-slate-500">
-            {mode === 'signin' && 'Access your voluntary donor profile or administrative duty console.'}
+            {mode === 'signin' && 'Without registration no one can sign in with mail. Please sign in with your registered account.'}
             {mode === 'signup' && 'Register your account to manage blood donation availability.'}
-            {mode === 'forgot' && 'Enter your registered email and we will send you a password reset link.'}
+            {mode === 'forgot' && 'Enter your registered email address to receive a password reset link.'}
           </p>
         </div>
+
+        {/* Clear Notice: Registration is required before signing in */}
+        {mode === 'signin' && (
+          <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5 shadow-2xs">
+            <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+            <div className="leading-relaxed">
+              <span className="font-bold text-amber-950">Registration Required: </span>
+              <span>Without registration, no one can sign in with mail. If you haven&apos;t registered yet, please </span>
+              <button
+                type="button"
+                onClick={() => onNavigate('register')}
+                className="font-bold underline text-rose-700 hover:text-rose-900 cursor-pointer"
+              >
+                Register as Donor
+              </button>
+              <span> first to create your profile and credentials.</span>
+            </div>
+          </div>
+        )}
 
         {/* Primary Recommended Option: Google Sign-in */}
         {mode !== 'forgot' && (
@@ -174,7 +271,7 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
             <div className="relative flex items-center justify-center my-2">
               <div className="border-t border-slate-200 w-full" />
               <span className="bg-white px-2 text-[11px] text-slate-400 uppercase tracking-wider relative">
-                or with email & password
+                or with email &amp; password
               </span>
             </div>
           </div>
@@ -184,34 +281,63 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
           <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 space-y-2">
             <div className="flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <span className="leading-relaxed">{error}</span>
+              <span className="leading-relaxed font-semibold">{error}</span>
             </div>
+
+            {isNotRegistered && mode === 'signin' && (
+              <div className="pt-2 border-t border-rose-200/60 text-[11px] space-y-2.5">
+                <div className="flex items-center gap-1.5 text-rose-950 font-bold text-xs">
+                  <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>You Need to Register as Donor</span>
+                </div>
+                <p className="text-rose-900 leading-relaxed">
+                  Without registration no one can sign in with mail. The email ID <span className="font-mono bg-rose-100/90 px-1.5 py-0.5 rounded text-rose-950 font-semibold">{email}</span> is not matched with any Identifier in Firebase Authentication. Please register as a donor first to create your credentials.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      setIsNotRegistered(false);
+                      onNavigate('register');
+                    }}
+                    className="flex-1 py-2 px-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition-colors text-xs text-center cursor-pointer shadow-xs min-h-[40px] flex items-center justify-center gap-1.5"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Register as Donor</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    className="py-2 px-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-semibold rounded-lg transition-colors text-xs text-center cursor-pointer min-h-[40px]"
+                  >
+                    Continue with Google
+                  </button>
+                </div>
+              </div>
+            )}
 
             {isInvalidCredential && mode === 'signin' && (
               <div className="pt-2 border-t border-rose-200/60 text-[11px] space-y-2">
-                <p className="text-rose-900 font-medium">
-                  Don't have a password set up for this email yet?
+                <p className="text-rose-900 font-semibold">
+                  Incorrect password for this email account.
+                </p>
+                <p className="text-rose-800 text-[11px] leading-relaxed">
+                  If you originally signed in with Google, you don't need a password—simply use Google Sign-In below:
                 </p>
                 <div className="flex flex-col gap-1.5 pt-1">
                   <button
                     type="button"
                     onClick={handleGoogleSignIn}
-                    className="w-full py-1.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-md transition-colors text-xs text-center"
+                    className="w-full py-2 px-3 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-md transition-colors text-xs text-center cursor-pointer flex items-center justify-center gap-2"
                   >
-                    Continue with Google (Instant Sign In)
+                    <span>Sign in with Google (1-Click)</span>
                   </button>
-                  <div className="flex items-center justify-between pt-1 text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() => onNavigate('signup')}
-                      className="text-rose-700 underline font-semibold hover:text-rose-900"
-                    >
-                      Create account (Sign Up)
-                    </button>
+                  <div className="flex items-center justify-end pt-1 text-[11px]">
                     <button
                       type="button"
                       onClick={() => onNavigate('forgot')}
-                      className="text-slate-600 underline hover:text-slate-900"
+                      className="text-slate-600 underline hover:text-slate-900 cursor-pointer"
                     >
                       Reset password
                     </button>
@@ -332,26 +458,69 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="e.g. Tanvir Ahmed"
-                  className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-hidden"
+                  required
+                  className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-hidden min-h-[44px]"
                 />
-                <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <User className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
               </div>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-semibold text-slate-700">
+                {mode === 'forgot' ? 'Registered Email Address' : 'Email Address (Firebase Identifier)'}
+              </label>
+              {mode === 'signin' && identifierStatus === 'matched' && (
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3 text-emerald-600" />
+                  <span>Identifier Matched</span>
+                </span>
+              )}
+              {mode === 'signin' && identifierStatus === 'checking' && (
+                <span className="text-[10px] text-slate-500 animate-pulse">
+                  Checking identifier...
+                </span>
+              )}
+            </div>
             <div className="relative">
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (identifierStatus !== 'idle') setIdentifierStatus('idle');
+                }}
+                onBlur={handleEmailBlur}
                 placeholder="name@example.com"
                 required
-                className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-hidden"
+                className={`w-full pl-9 pr-3 py-2 text-xs border rounded-lg focus:ring-2 focus:outline-hidden min-h-[44px] ${
+                  identifierStatus === 'matched'
+                    ? 'border-emerald-400 focus:ring-emerald-500 bg-emerald-50/20'
+                    : identifierStatus === 'not_registered'
+                    ? 'border-rose-400 focus:ring-rose-500 bg-rose-50/20'
+                    : 'border-slate-300 focus:ring-rose-500'
+                }`}
               />
-              <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
             </div>
+
+            {mode === 'signin' && identifierStatus === 'not_registered' && (
+              <div className="mt-1.5 p-2 rounded-lg bg-rose-50 border border-rose-200 text-[11px] text-rose-900 flex items-start gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="flex-1 leading-snug">
+                  <span className="font-semibold">Email ID not matched with any Identifier. </span>
+                  <span>You Need to Register as Donor before you can sign in. </span>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('register')}
+                    className="font-bold underline text-rose-700 hover:text-rose-950 ml-1 cursor-pointer"
+                  >
+                    Register as Donor
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {mode !== 'forgot' && (
@@ -362,7 +531,7 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
                   <button
                     type="button"
                     onClick={() => onNavigate('forgot')}
-                    className="text-[11px] text-rose-600 hover:text-rose-800 font-medium"
+                    className="text-[11px] text-rose-600 hover:text-rose-800 font-medium cursor-pointer"
                   >
                     Forgot Password?
                   </button>
@@ -375,9 +544,9 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-hidden"
+                  className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-hidden min-h-[44px]"
                 />
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
               </div>
             </div>
           )}
@@ -385,24 +554,43 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ mode, onNavigate }) => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 px-4 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs transition-colors disabled:opacity-50"
+            className="w-full py-2.5 px-4 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs transition-colors disabled:opacity-50 min-h-[44px] flex items-center justify-center gap-2 cursor-pointer"
           >
-            {loading ? 'Processing...' : mode === 'signin' ? 'Sign In with Email' : mode === 'signup' ? 'Create Account with Email' : 'Send Reset Link'}
+            {loading ? (
+              <span>Processing...</span>
+            ) : mode === 'signin' ? (
+              'Sign In with Email'
+            ) : mode === 'signup' ? (
+              'Create Donor Account'
+            ) : (
+              'Send Password Reset Link'
+            )}
           </button>
+
+          {mode === 'signin' && (
+            <div className="text-center text-xs text-slate-600 pt-1">
+              <span>Don&apos;t have a registered account? </span>
+              <button
+                type="button"
+                onClick={() => onNavigate('register')}
+                className="font-bold text-rose-600 hover:text-rose-800 underline cursor-pointer"
+              >
+                Register as Donor
+              </button>
+            </div>
+          )}
         </form>
 
         {/* Footer toggles */}
         <div className="pt-4 border-t border-slate-100 text-center text-xs text-slate-500">
           {mode === 'signin' ? (
-            <p>
-              Don't have an account yet?{' '}
-              <button
-                onClick={() => onNavigate('signup')}
-                className="text-rose-600 font-semibold hover:text-rose-700"
-              >
-                Sign Up
-              </button>
-            </p>
+            <button
+              onClick={() => onNavigate('home')}
+              className="text-slate-500 hover:text-slate-800 inline-flex items-center gap-1 font-medium transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to Home</span>
+            </button>
           ) : (
             <button
               onClick={() => onNavigate('signin')}

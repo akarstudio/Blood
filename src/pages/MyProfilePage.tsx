@@ -54,6 +54,7 @@ export const MyProfilePage: React.FC<MyProfilePageProps> = ({ onNavigate }) => {
   );
 
   const [policyInterval, setPolicyInterval] = useState(3);
+  const [profileMobileTab, setProfileMobileTab] = useState<'status' | 'preferences' | 'privacy'>('status');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
@@ -240,12 +241,56 @@ export const MyProfilePage: React.FC<MyProfilePageProps> = ({ onNavigate }) => {
       )}
 
       {donorProfile ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Left Column: Status Overview Card */}
-          <div className="md:col-span-1 space-y-6">
-            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4 shadow-2xs">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-rose-50 border border-rose-100 text-rose-700 flex items-center justify-center font-bold text-lg">
+        <div className="space-y-6">
+          {/* Responsive Mobile Tab Navigation Strip */}
+          <div role="tablist" aria-label="Profile Sections" className="md:hidden grid grid-cols-3 p-1 bg-slate-100 rounded-xl">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={profileMobileTab === 'status'}
+              onClick={() => setProfileMobileTab('status')}
+              className={`py-2 px-2 text-xs font-semibold rounded-lg transition-all min-h-[44px] flex items-center justify-center text-center focus:outline-hidden focus:ring-2 focus:ring-rose-500 ${
+                profileMobileTab === 'status'
+                  ? 'bg-white text-slate-900 shadow-2xs font-bold ring-1 ring-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Status &amp; Verification
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={profileMobileTab === 'preferences'}
+              onClick={() => setProfileMobileTab('preferences')}
+              className={`py-2 px-2 text-xs font-semibold rounded-lg transition-all min-h-[44px] flex items-center justify-center text-center focus:outline-hidden focus:ring-2 focus:ring-rose-500 ${
+                profileMobileTab === 'preferences'
+                  ? 'bg-white text-slate-900 shadow-2xs font-bold ring-1 ring-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Preferences
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={profileMobileTab === 'privacy'}
+              onClick={() => setProfileMobileTab('privacy')}
+              className={`py-2 px-2 text-xs font-semibold rounded-lg transition-all min-h-[44px] flex items-center justify-center text-center focus:outline-hidden focus:ring-2 focus:ring-rose-500 ${
+                profileMobileTab === 'privacy'
+                  ? 'bg-white text-slate-900 shadow-2xs font-bold ring-1 ring-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Data Privacy
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Left Column: Status Overview Card */}
+            <div className={`md:col-span-1 space-y-6 ${profileMobileTab !== 'status' ? 'hidden md:block' : ''}`}>
+              <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4 shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-rose-50 border border-rose-100 text-rose-700 flex items-center justify-center font-bold text-lg">
                   {donorProfile.bloodGroup}
                 </div>
                 <div className="space-y-0.5">
@@ -324,10 +369,10 @@ export const MyProfilePage: React.FC<MyProfilePageProps> = ({ onNavigate }) => {
           </div>
 
           {/* Right Column: Editable Profile Preferences */}
-          <div className="md:col-span-2">
-            <form onSubmit={handleSavePreferences} className="bg-white rounded-xl border border-slate-200 shadow-2xs p-6 space-y-6">
+          <div className={`md:col-span-2 space-y-6 ${profileMobileTab === 'status' ? 'hidden md:block' : ''}`}>
+            <form onSubmit={handleSavePreferences} className={`${profileMobileTab === 'privacy' ? 'hidden md:block' : ''} bg-white rounded-xl border border-slate-200 shadow-2xs p-6 space-y-6`}>
               <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900 border-b border-slate-100 pb-2">
-                Availability & Privacy Settings
+                Availability &amp; Privacy Settings
               </h2>
 
               {/* Declared Availability Toggle */}
@@ -427,10 +472,10 @@ export const MyProfilePage: React.FC<MyProfilePageProps> = ({ onNavigate }) => {
             </form>
 
             {/* Danger Zone: Right to be Forgotten / Remove Donor Record */}
-            <div className="bg-rose-50/60 rounded-xl border border-rose-200 p-5 space-y-3">
+            <div className={`${profileMobileTab === 'preferences' ? 'hidden md:block' : ''} bg-rose-50/60 rounded-xl border border-rose-200 p-5 space-y-3`}>
               <div className="flex items-center gap-2 text-rose-800">
                 <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                <h4 className="text-xs font-bold uppercase tracking-wider">Privacy & Data Management (Right to be Forgotten)</h4>
+                <h4 className="text-xs font-bold uppercase tracking-wider">Privacy &amp; Data Management (Right to be Forgotten)</h4>
               </div>
               <p className="text-xs text-rose-700 leading-relaxed">
                 If you no longer wish to be listed as a voluntary blood donor in Bangladesh, you can permanently delete your donor registration. This atomically deletes your donor record and unlinks your registered phone number from our lookup index.
@@ -442,7 +487,7 @@ export const MyProfilePage: React.FC<MyProfilePageProps> = ({ onNavigate }) => {
                     setDeleteConfirmationText('');
                     setShowDeleteModal(true);
                   }}
-                  className="px-4 py-2 text-xs font-bold text-rose-700 bg-white border border-rose-300 hover:bg-rose-100 rounded-lg shadow-2xs transition-colors flex items-center gap-2"
+                  className="px-4 py-2.5 text-xs font-bold text-rose-700 bg-white border border-rose-300 hover:bg-rose-100 rounded-lg shadow-2xs transition-colors flex items-center gap-2 min-h-[44px]"
                 >
                   <Trash2 className="w-4 h-4 text-rose-600" />
                   <span>Delete Donor Registration</span>
@@ -451,6 +496,7 @@ export const MyProfilePage: React.FC<MyProfilePageProps> = ({ onNavigate }) => {
             </div>
           </div>
         </div>
+      </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 p-8 text-center space-y-4">
           <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 text-slate-600 flex items-center justify-center">

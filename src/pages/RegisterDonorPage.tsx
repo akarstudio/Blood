@@ -4,6 +4,7 @@ import {
   UserCheck, 
   ShieldAlert, 
   CheckCircle, 
+  Check,
   AlertCircle, 
   Info,
   Calendar,
@@ -61,6 +62,25 @@ export const RegisterDonorPage: React.FC<RegisterDonorPageProps> = ({ onNavigate
 
   const districts = division ? getDistrictsForDivision(division) : [];
   const upazilas = division && district ? getUpazilasForDistrict(division, district) : [];
+
+  // Interactive Stepper Tab States
+  const [activeStep, setActiveStep] = useState<'personal' | 'account' | 'location' | 'consents'>('personal');
+  const isPersonalDone = fullName.trim().length >= 2;
+  const isAccountDone = Boolean(
+    isValidEmail(email) && 
+    normalizeBangladeshPhone(phone) && 
+    (user || (password.length >= 6 && password === confirmPassword))
+  );
+  const isLocationDone = Boolean(bloodGroup && division && district && upazila);
+  const isConsentsDone = Boolean(privacyConsent && termsConsent);
+
+  const scrollToStep = (stepId: 'personal' | 'account' | 'location' | 'consents') => {
+    setActiveStep(stepId);
+    const el = document.getElementById(`section-${stepId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -319,19 +339,142 @@ export const RegisterDonorPage: React.FC<RegisterDonorPageProps> = ({ onNavigate
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-xs border border-slate-200 p-4 sm:p-8 space-y-6 sm:space-y-8">
-        {/* Mobile Quick Form Step Indicator */}
-        <div className="md:hidden flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px] font-medium text-slate-500">
-          <span className="bg-rose-50 text-rose-700 font-bold px-2 py-1 rounded-md shrink-0 border border-rose-100">1. Personal</span>
-          <span className="text-slate-300">&rarr;</span>
-          <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded-md shrink-0">2. Account</span>
-          <span className="text-slate-300">&rarr;</span>
-          <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded-md shrink-0">3. Blood &amp; Area</span>
-          <span className="text-slate-300">&rarr;</span>
-          <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded-md shrink-0">4. Consents</span>
+        {/* Responsive Interactive Stepper Tabs (Mobile swipeable strip / Desktop 4-column progress bar) */}
+        <div className="space-y-2 pb-4 border-b border-slate-100">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Registration Progress
+            </span>
+            <span className="text-[11px] font-semibold text-slate-600">
+              {[isPersonalDone, isAccountDone, isLocationDone, isConsentsDone].filter(Boolean).length} of 4 Complete
+            </span>
+          </div>
+
+          <div
+            role="tablist"
+            aria-label="Registration Steps"
+            className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-4 py-1"
+          >
+            {/* Step 1: Personal */}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeStep === 'personal'}
+              onClick={() => scrollToStep('personal')}
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left shrink-0 transition-all min-h-[44px] focus:outline-hidden focus:ring-2 focus:ring-rose-500 ${
+                activeStep === 'personal'
+                  ? 'bg-rose-50/90 border-rose-300 ring-1 ring-rose-200'
+                  : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80'
+              }`}
+            >
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                  isPersonalDone
+                    ? 'bg-emerald-600 text-white'
+                    : activeStep === 'personal'
+                    ? 'bg-rose-600 text-white'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {isPersonalDone ? <Check className="w-3.5 h-3.5" /> : '1'}
+              </div>
+              <div className="min-w-0 pr-1">
+                <p className="text-xs font-bold text-slate-900 truncate">1. Personal</p>
+                <p className="text-[10px] text-slate-500 truncate hidden sm:block">Name &amp; Gender</p>
+              </div>
+            </button>
+
+            {/* Step 2: Account */}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeStep === 'account'}
+              onClick={() => scrollToStep('account')}
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left shrink-0 transition-all min-h-[44px] focus:outline-hidden focus:ring-2 focus:ring-rose-500 ${
+                activeStep === 'account'
+                  ? 'bg-rose-50/90 border-rose-300 ring-1 ring-rose-200'
+                  : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80'
+              }`}
+            >
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                  isAccountDone
+                    ? 'bg-emerald-600 text-white'
+                    : activeStep === 'account'
+                    ? 'bg-rose-600 text-white'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {isAccountDone ? <Check className="w-3.5 h-3.5" /> : '2'}
+              </div>
+              <div className="min-w-0 pr-1">
+                <p className="text-xs font-bold text-slate-900 truncate">2. Account</p>
+                <p className="text-[10px] text-slate-500 truncate hidden sm:block">Email &amp; Mobile</p>
+              </div>
+            </button>
+
+            {/* Step 3: Location */}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeStep === 'location'}
+              onClick={() => scrollToStep('location')}
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left shrink-0 transition-all min-h-[44px] focus:outline-hidden focus:ring-2 focus:ring-rose-500 ${
+                activeStep === 'location'
+                  ? 'bg-rose-50/90 border-rose-300 ring-1 ring-rose-200'
+                  : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80'
+              }`}
+            >
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                  isLocationDone
+                    ? 'bg-emerald-600 text-white'
+                    : activeStep === 'location'
+                    ? 'bg-rose-600 text-white'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {isLocationDone ? <Check className="w-3.5 h-3.5" /> : '3'}
+              </div>
+              <div className="min-w-0 pr-1">
+                <p className="text-xs font-bold text-slate-900 truncate">3. Blood &amp; Area</p>
+                <p className="text-[10px] text-slate-500 truncate hidden sm:block">Group &amp; Upazila</p>
+              </div>
+            </button>
+
+            {/* Step 4: Consents */}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeStep === 'consents'}
+              onClick={() => scrollToStep('consents')}
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left shrink-0 transition-all min-h-[44px] focus:outline-hidden focus:ring-2 focus:ring-rose-500 ${
+                activeStep === 'consents'
+                  ? 'bg-rose-50/90 border-rose-300 ring-1 ring-rose-200'
+                  : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80'
+              }`}
+            >
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                  isConsentsDone
+                    ? 'bg-emerald-600 text-white'
+                    : activeStep === 'consents'
+                    ? 'bg-rose-600 text-white'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {isConsentsDone ? <Check className="w-3.5 h-3.5" /> : '4'}
+              </div>
+              <div className="min-w-0 pr-1">
+                <p className="text-xs font-bold text-slate-900 truncate">4. Consents</p>
+                <p className="text-[10px] text-slate-500 truncate hidden sm:block">Policy &amp; Terms</p>
+              </div>
+            </button>
+          </div>
         </div>
 
         {/* Personal Details */}
-        <div className="space-y-4">
+        <div id="section-personal" className="space-y-4 scroll-mt-24">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
             <User className="w-4 h-4 text-rose-600" />
             1. Personal Information
@@ -373,7 +516,7 @@ export const RegisterDonorPage: React.FC<RegisterDonorPageProps> = ({ onNavigate
         </div>
 
         {/* Contact & Authentication */}
-        <div className="space-y-4">
+        <div id="section-account" className="space-y-4 scroll-mt-24">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
             <Mail className="w-4 h-4 text-rose-600" />
             2. Contact & Account Access
@@ -477,7 +620,7 @@ export const RegisterDonorPage: React.FC<RegisterDonorPageProps> = ({ onNavigate
         </div>
 
         {/* Blood & Geographic Location */}
-        <div className="space-y-4">
+        <div id="section-location" className="space-y-4 scroll-mt-24">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
             <MapPin className="w-4 h-4 text-rose-600" />
             3. Blood Group & Bangladesh Location
@@ -580,7 +723,7 @@ export const RegisterDonorPage: React.FC<RegisterDonorPageProps> = ({ onNavigate
         </div>
 
         {/* Donation History & Availability */}
-        <div className="space-y-4">
+        <div id="section-consents" className="space-y-4 scroll-mt-24">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
             <Calendar className="w-4 h-4 text-rose-600" />
             4. Donation History & Preferences

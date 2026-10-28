@@ -1,26 +1,73 @@
-import React, { useState } from 'react';
-import { X, Droplet, MapPin, Calendar, Phone, Mail, MessageSquare, ShieldCheck, AlertCircle, Share2, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Droplet, MapPin, Calendar, Phone, Mail, MessageSquare, ShieldCheck, AlertCircle, Share2, Check, Lock, LogIn, ShieldAlert } from 'lucide-react';
 import { Donor } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
 import { formatBangladeshDateOnly, formatBangladeshPhone } from '../../utils/availability';
+import { useAuth } from '../../context/AuthContext';
+import { fetchDonorContact } from '../../services/dataSyncService';
+import { db } from '../../services/firebase';
 
 interface DonorProfileModalProps {
   donor: Donor | null;
   onClose: () => void;
+  onNavigate?: (page: string) => void;
 }
 
-export const DonorProfileModal: React.FC<DonorProfileModalProps> = ({ donor, onClose }) => {
+export const DonorProfileModal: React.FC<DonorProfileModalProps> = ({ donor, onClose, onNavigate }) => {
+  const { user } = useAuth();
+  const [copiedShare, setCopiedShare] = useState(false);
+  const [contactData, setContactData] = useState<{ phone: string; email: string } | null>(null);
+  const [contactLoading, setContactLoading] = useState(false);
+  const [contactPermissionDenied, setContactPermissionDenied] = useState(false);
+
+  useEffect(() => {
+    if (!donor || !user) {
+      setContactData(null);
+      setContactPermissionDenied(false);
+      return;
+    }
+
+    let isMounted = true;
+    setContactLoading(true);
+    setContactPermissionDenied(false);
+
+    fetchDonorContact(db, donor.id)
+      .then((data) => {
+        if (isMounted) {
+          setContactData(data);
+          setContactLoading(false);
+        }
+      })
+      .catch((err: any) => {
+        if (isMounted) {
+          if (err.code === 'permission-denied') {
+            setContactPermissionDenied(true);
+          }
+          setContactLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [donor?.id, user]);
+
   if (!donor) return null;
 
+  const isAuthenticated = Boolean(user);
   const canShowContact = donor.publicContactConsent && donor.contactVisibilityPreference !== 'hidden';
   const canShowDonationDate = donor.publicProfileConsent && Boolean(donor.lastDonationDate);
-  const [copiedShare, setCopiedShare] = useState(false);
+  const resolvedPhone = contactData?.phone || donor.phone;
 
   const handleShare = async () => {
+    const phoneDisplay = isAuthenticated && !contactPermissionDenied && resolvedPhone
+      ? formatBangladeshPhone(resolvedPhone)
+      : 'Protected (Sign in to view number)';
+
     const text = `🩸 Voluntary Blood Donor (${donor.bloodGroup})
 Name: ${donor.fullName}
 Location: ${donor.upazila}, ${donor.district} (${donor.division} Div.)
-Phone: ${donor.phone ? formatBangladeshPhone(donor.phone) : 'Shielded'}
+Phone: ${phoneDisplay}
 Availability: ${donor.calculatedAvailability.toUpperCase()}
 Verified on Blood Group Finder Bangladesh`;
 
@@ -98,6 +145,30 @@ Verified on Blood Group Finder Bangladesh`;
             </div>
           </div>
 
+          {/* Demographics & Preferences */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 p-3 bg-slate-50 rounded-lg border border-slate-100 text-xs">
+            <div>
+              <span className="text-slate-500 block text-[11px]">Gender</span>
+              <span className="font-semibold text-slate-800 capitalize">
+                {donor.gender && donor.gender !== 'unspecified' ? donor.gender : 'Unspecified'}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-[11px]">Preferred Contact</span>
+              <span className="font-semibold text-slate-800 capitalize">
+                {donor.preferredContactMethod || 'Phone Call'}
+              </span>
+            </div>
+            {donor.dateOfBirth && (
+              <div>
+                <span className="text-slate-500 block text-[11px]">Date of Birth</span>
+                <span className="font-semibold text-slate-800 tabular-nums">
+                  {formatBangladeshDateOnly(donor.dateOfBirth)}
+                </span>
+              </div>
+            )}
+          </div>
+
           {/* Location details */}
           <div className="space-y-2">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Location in Bangladesh</h4>
@@ -133,34 +204,143 @@ Verified on Blood Group Finder Bangladesh`;
             </div>
           </div>
 
+          {/* Additional Notes */}
+          {donor.additionalNotes && (
+            <div className="space-y-1 p-3 bg-amber-50/50 rounded-lg border border-amber-200/60 text-xs">
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-amber-800">Donor Notes & Comments</h4>
+              <p className="text-slate-700 leading-relaxed">{donor.additionalNotes}</p>
+            </div>
+          )}
+
           {/* Contact Section */}
           <div className="space-y-3 pt-2 border-t border-slate-100">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Direct Contact Options</h4>
-            {canShowContact ? (
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Direct Contact Options</h4>
+              {!isAuthenticated && (
+                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1">
+                  <Lock className="w-3 h-3" />
+                  <span>Sign In Required</span>
+                </span>
+              )}
+            </div>
+
+            {!isAuthenticated ? (
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3.5">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 rounded-lg bg-rose-100 text-rose-700 shrink-0 mt-0.5">
+                    <Lock className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-slate-900">Phone Number Shielded</p>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      To safeguard voluntary blood donors from spam and unverified callers, direct mobile numbers and WhatsApp links are only visible to authenticated members.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-lg border border-slate-200 p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 text-slate-400">
+                    <Phone className="w-4 h-4" />
+                    <span className="font-mono text-xs sm:text-sm tracking-widest font-semibold text-slate-500">
+                      01********* (Hidden)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                    Sign in to unlock
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      if (onNavigate) {
+                        onNavigate('signin');
+                      } else {
+                        window.location.hash = '#/signin';
+                      }
+                    }}
+                    className="flex-1 py-2.5 px-4 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-2xs transition-colors min-h-[44px]"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>Sign In to View Phone Number</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      if (onNavigate) {
+                        onNavigate('register');
+                      } else {
+                        window.location.hash = '#/register';
+                      }
+                    }}
+                    className="py-2.5 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold flex items-center justify-center transition-colors min-h-[44px]"
+                  >
+                    <span>Register</span>
+                  </button>
+                </div>
+              </div>
+            ) : contactLoading ? (
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center gap-2 text-xs text-slate-500 min-h-[70px]">
+                <div className="w-4 h-4 border-2 border-rose-600 border-t-transparent rounded-full animate-spin" />
+                <span>Verifying donor contact authorization...</span>
+              </div>
+            ) : contactPermissionDenied ? (
+              <div className="p-4 bg-amber-50/90 border border-amber-200 rounded-xl space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-amber-100 rounded-lg text-amber-800 shrink-0 mt-0.5">
+                    <ShieldAlert className="w-4 h-4" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-amber-950">Approved Donor Membership Required</p>
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                      To protect voluntary donors from spam and unsolicited calls, direct phone numbers are reserved for registered, approved donors and verified staff.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    if (onNavigate) {
+                      onNavigate('register');
+                    } else {
+                      window.location.hash = '#/register';
+                    }
+                  }}
+                  className="w-full py-2.5 px-3 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 shadow-2xs transition-colors min-h-[42px]"
+                >
+                  <span>Complete Donor Registration to Unlock</span>
+                </button>
+              </div>
+            ) : canShowContact && resolvedPhone ? (
               <div className="space-y-2">
-                <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-white">
+                <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-white shadow-2xs">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-md bg-rose-50 text-rose-600">
                       <Phone className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="text-xs text-slate-500">Phone Number</p>
+                      <p className="text-xs text-slate-500">Phone Number (Verified)</p>
                       <p className="text-sm font-semibold tabular-nums text-slate-900">
-                        {formatBangladeshPhone(donor.phone)}
+                        {formatBangladeshPhone(resolvedPhone)}
                       </p>
                     </div>
                   </div>
                   <a
-                    href={`tel:${donor.phone}`}
+                    href={`tel:${resolvedPhone}`}
                     className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-lg transition-colors min-h-[44px] flex items-center justify-center shadow-2xs"
                   >
                     Call Now
                   </a>
                 </div>
 
-                {donor.phone && (
+                {resolvedPhone && (
                   <a
-                    href={`https://wa.me/88${donor.phone.replace(/^0/, '')}`}
+                    href={`https://wa.me/88${resolvedPhone.replace(/^0/, '')}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full flex items-center justify-center gap-2 py-3 px-4 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 rounded-lg border border-emerald-200 transition-colors min-h-[44px]"

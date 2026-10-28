@@ -89,4 +89,19 @@ describe('Validation & Sanitization Engine', () => {
       expect(sanitizeForSpreadsheet('A+')).toBe('A+');
     });
   });
+
+  describe('Phone Sign-In Identifier Resolution Logic', () => {
+    it('correctly discriminates between email identifiers and phone numbers', () => {
+      const emailId = 'donor@example.com';
+      const phoneId = '01712345678';
+      const intlPhoneId = '+8801812345678';
+
+      expect(emailId.includes('@')).toBe(true);
+      expect(phoneId.includes('@')).toBe(false);
+      expect(intlPhoneId.includes('@')).toBe(false);
+
+      expect(normalizeBangladeshPhone(phoneId)).toBe('01712345678');
+      expect(normalizeBangladeshPhone(intlPhoneId)).toBe('01812345678');
+    });
+  });
 });

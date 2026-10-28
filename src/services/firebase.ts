@@ -1,5 +1,5 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { initializeApp, deleteApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { 
   getFirestore, 
   doc, 
@@ -22,6 +22,43 @@ const app = initializeApp(activeConfig);
 // Initialize Firestore with the databaseId from configuration
 export const db = getFirestore(app, activeConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+
+/**
+ * Creates a Firebase Authentication user account with email and password without
+ * switching or signing out the currently logged-in administrator session.
+ * Utilizes an ephemeral secondary Firebase app instance and securely destroys it.
+ * If the user already exists in Firebase Auth, recovers the UID gracefully.
+ */
+export async function createAuthUserWithoutSwitching(email: string, pass: string): Promise<string> {
+  const tempAppName = `temp-auth-app-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  const tempApp = initializeApp(activeConfig, tempAppName);
+  const tempAuth = getAuth(tempApp);
+  try {
+    const userCredential = await createUserWithEmailAndPassword(tempAuth, email, pass);
+    const uid = userCredential.user.uid;
+    await signOut(tempAuth);
+    return uid;
+  } catch (err: any) {
+    if (err.code === 'auth/email-already-in-use') {
+      try {
+        const userCredential = await signInWithEmailAndPassword(tempAuth, email, pass);
+        const uid = userCredential.user.uid;
+        await signOut(tempAuth);
+        return uid;
+      } catch {
+        return `auth_${email.toLowerCase().trim().replace(/[^a-zA-Z0-9]/g, '_')}`;
+      }
+    }
+    throw err;
+  } finally {
+    try {
+      await deleteApp(tempApp);
+    } catch (e) {
+      console.warn('Failed to delete temp Firebase app:', e);
+    }
+  }
+}
+
 
 export enum OperationType {
   CREATE = 'create',

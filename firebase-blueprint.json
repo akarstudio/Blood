@@ -139,6 +139,19 @@
         "filename": { "type": "string" }
       },
       "required": ["createdBy", "createdAt", "status", "totalRows", "successCount"]
+    },
+    "RegisteredPhone": {
+      "title": "Registered Phone Index",
+      "description": "Unique phone lookup index for fast phone sign-in and registration deduplication",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "phone"]
     }
   },
   "firestore": {
@@ -149,6 +162,10 @@
     "/donors/{donorId}": {
       "schema": "Donor",
       "description": "Registered blood donors directory"
+    },
+    "/registeredPhones/{phone}": {
+      "schema": "RegisteredPhone",
+      "description": "Unique phone lookup index for phone sign-in and registration deduplication"
     },
     "/roles/{roleId}": {
       "schema": "Role",

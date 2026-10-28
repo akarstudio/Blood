@@ -73,7 +73,7 @@ export default function App() {
           )}
 
           {currentPage === 'signup' && (
-            <AuthPages mode="signup" onNavigate={handleNavigate} />
+            <RegisterDonorPage onNavigate={handleNavigate} />
           )}
 
           {currentPage === 'forgot' && (

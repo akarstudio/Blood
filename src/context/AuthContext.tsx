@@ -24,6 +24,7 @@ import { auth, db, handleFirestoreError, OperationType, testConnection } from '.
 import { UserProfile, Donor, Permission, AvailabilityPolicy } from '../types';
 import { DEFAULT_ROLES } from '../data/rolesData';
 import { normalizeEmail } from '../utils/validation';
+import { syncRegisteredIdentifier } from '../services/dataSyncService';
 
 interface AuthContextType {
   user: User | null;
@@ -100,7 +101,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         computePermissions(data.roleIds, isBootstrappedAdmin);
       }
 
+      if (currentUser.email) {
+        try {
+          await syncRegisteredIdentifier(db, currentUser.email, currentUser.uid);
+        } catch (idErr) {
+          console.warn('Sync identifier notice:', idErr);
+        }
+      }
+
       if (isBootstrappedAdmin) {
+        try {
+          const allUsersSnap = await getDocs(collection(db, 'users'));
+          allUsersSnap.forEach((uDoc) => {
+            const uData = uDoc.data();
+            if (uData.email) {
+              syncRegisteredIdentifier(db, uData.email, uDoc.id).catch(() => {});
+            }
+          });
+        } catch {
+          // background sync
+        }
+
         try {
           const policyRef = doc(db, 'systemSettings', 'availabilityPolicy');
           const policySnap = await getDoc(policyRef);
@@ -178,17 +199,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const signIn = async (email: string, pass: string) => {
-    await signInWithEmailAndPassword(auth, email, pass);
-  };
-
   const signUp = async (email: string, pass: string, displayName: string): Promise<User> => {
-    const cred = await createUserWithEmailAndPassword(auth, email, pass);
-    const isBootstrappedAdmin = normalizeEmail(email) === normalizeEmail(BOOTSTRAP_SUPER_ADMIN_EMAIL);
+    const cleanEmail = normalizeEmail(email);
+    const cred = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
+    const isBootstrappedAdmin = cleanEmail === normalizeEmail(BOOTSTRAP_SUPER_ADMIN_EMAIL);
     const newProfile: UserProfile = {
       uid: cred.user.uid,
-      email: cred.user.email || email,
-      displayName: displayName || email.split('@')[0],
+      email: cred.user.email || cleanEmail,
+      displayName: displayName || cleanEmail.split('@')[0],
       roleIds: isBootstrappedAdmin ? ['super_admin'] : ['viewer_auditor'],
       accountStatus: 'active',
       createdAt: new Date().toISOString(),
@@ -196,9 +214,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       lastLoginAt: new Date().toISOString(),
     };
     await setDoc(doc(db, 'users', cred.user.uid), newProfile);
+    try {
+      await syncRegisteredIdentifier(db, cleanEmail, cred.user.uid);
+    } catch (e) {
+      console.warn('Sync identifier on signUp notice:', e);
+    }
     setUserProfile(newProfile);
     computePermissions(newProfile.roleIds, isBootstrappedAdmin);
     return cred.user;
+  };
+
+  const signIn = async (email: string, pass: string) => {
+    const cleanEmail = normalizeEmail(email);
+    await signInWithEmailAndPassword(auth, cleanEmail, pass);
   };
 
   const signInWithGoogle = async () => {
@@ -219,8 +247,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await firebaseSendEmailVerification(auth.currentUser);
   };
 
-  const sendPasswordReset = async (email: string) => {
-    await firebaseSendPasswordResetEmail(auth, email);
+  const sendPasswordReset = async (email: string): Promise<void> => {
+    await firebaseSendPasswordResetEmail(auth, normalizeEmail(email));
   };
 
   const hasPermission = (permission: Permission): boolean => {

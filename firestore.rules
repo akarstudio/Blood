@@ -14,9 +14,12 @@ service cloud.firestore {
     }
 
     function isBootstrappedAdmin() {
-      return isSignedIn() && 
-        'email' in request.auth.token && 
-        request.auth.token.email.lower() == 'abrar.noceng@gmail.com';
+      return isSignedIn() && (
+        ('email' in request.auth.token && request.auth.token.email.lower() == 'abrar.noceng@gmail.com') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         'email' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email.lower() == 'abrar.noceng@gmail.com')
+      );
     }
 
     function hasAdminRole() {
@@ -69,19 +72,37 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function isAuthorizedApprovedDonor(uid) {
+      return isSignedIn() && (
+        hasStaffRole() || (
+          exists(/databases/$(database)/documents/donors/$(uid)) &&
+          get(/databases/$(database)/documents/donors/$(uid)).data.approvalStatus == 'approved' &&
+          get(/databases/$(database)/documents/donors/$(uid)).data.accountStatus == 'active'
+        ) || (
+          exists(/databases/$(database)/documents/users/$(uid)) &&
+          get(/databases/$(database)/documents/users/$(uid)).data.accountStatus == 'active' &&
+          'roleIds' in get(/databases/$(database)/documents/users/$(uid)).data &&
+          ('donor' in get(/databases/$(database)/documents/users/$(uid)).data.roleIds || 'super_admin' in get(/databases/$(database)/documents/users/$(uid)).data.roleIds)
+        )
+      );
+    }
+
     // USERS COLLECTION
     match /users/{userId} {
-      allow get: if isOwner(userId) || hasAdminRole();
-      allow list: if hasAdminRole();
+      allow get: if isOwner(userId) || hasStaffRole();
+      allow list: if hasStaffRole();
 
-      // Users can create their own profile without self-granting admin roles
-      allow create: if isOwner(userId) && (
-        isBootstrappedAdmin() || 
-        !('super_admin' in request.resource.data.roleIds || 'admin' in request.resource.data.roleIds)
+      // Administrators and staff can create user accounts (batch user imports, donor accounts)
+      // Normal users can create their own profile without self-granting privileged roles
+      allow create: if hasStaffRole() || (
+        isOwner(userId) && (
+          isBootstrappedAdmin() || 
+          request.resource.data.roleIds.hasOnly(['donor', 'general_user'])
+        )
       );
 
-      // Users can update their basic fields; only admins can change roleIds and accountStatus
-      allow update: if hasAdminRole() || (
+      // Users can update their basic fields; staff and admins can update any user
+      allow update: if hasStaffRole() || (
         isOwner(userId) && 
         request.resource.data.roleIds == resource.data.roleIds &&
         request.resource.data.accountStatus == resource.data.accountStatus
@@ -92,12 +113,10 @@ service cloud.firestore {
       );
     }
 
-    // DONORS COLLECTION
+    // DONORS COLLECTION (Public Directory Metadata - Phone numbers omitted or masked)
     match /donors/{donorId} {
       // 1. Get single document:
-      // Allow read if user is the authenticated owner
-      // Or if caller is authorized staff (super_admin, admin, donor_manager, data_entry, import_export, viewer)
-      // Or if the public doc exists and is approved, verified, and active
+      // Allow read if user is the authenticated owner, authorized staff, or if doc is approved/verified/active
       allow get: if (
         isSignedIn() && (
           donorId == request.auth.uid ||
@@ -112,14 +131,12 @@ service cloud.firestore {
       );
 
       // 2. List queries:
-      // Allow if caller is authorized staff, or querying their own record,
-      // Or public searching approved, verified, active donors
+      // Match query filters statically without resource != null constraints
       allow list: if (
         isSignedIn() && hasStaffRole()
       ) || (
-        isSignedIn() && resource != null && 'uid' in resource.data && resource.data.uid == request.auth.uid
+        isSignedIn() && resource.data.uid == request.auth.uid
       ) || (
-        resource != null &&
         resource.data.approvalStatus == 'approved' &&
         resource.data.contactVerificationStatus == 'verified' &&
         resource.data.accountStatus == 'active'
@@ -127,9 +144,9 @@ service cloud.firestore {
 
       // 3. Creation:
       // Registered authenticated user creating their own donor profile with pending status
-      // Or authorized staff (donor_manager, admin, super_admin, data_entry_operator)
+      // Or authorized staff (donor_manager, admin, super_admin, data_entry_operator, etc.)
       allow create: if isSignedIn() && (
-        hasDonorManagerRole() || (
+        hasStaffRole() || (
           (request.resource.data.uid == request.auth.uid || donorId == request.auth.uid) &&
           request.resource.data.approvalStatus == 'pending' &&
           request.resource.data.contactVerificationStatus == 'unverified' &&
@@ -138,10 +155,10 @@ service cloud.firestore {
       );
 
       // 4. Update:
-      // Donor managers and admins can update all fields
+      // Authorized staff can update all fields
       // Donor owners can update declaredAvailability, contact preferences, and notes,
       // but strictly NOT approvalStatus, contactVerificationStatus, or accountStatus
-      allow update: if hasDonorManagerRole() || (
+      allow update: if hasStaffRole() || (
         isSignedIn() &&
         (donorId == request.auth.uid || (resource != null && 'uid' in resource.data && resource.data.uid == request.auth.uid)) &&
         request.resource.data.approvalStatus == resource.data.approvalStatus &&
@@ -150,9 +167,9 @@ service cloud.firestore {
       );
 
       // 5. Delete:
-      // Admins can delete any donor.
+      // Admins and donor managers can delete donors.
       // Registered donors can delete their own donor profile (Right to be Forgotten).
-      allow delete: if hasAdminRole() || (
+      allow delete: if hasAdminRole() || hasDonorManagerRole() || (
         isSignedIn() && (
           donorId == request.auth.uid ||
           (resource != null && 'uid' in resource.data && resource.data.uid == request.auth.uid)
@@ -160,16 +177,52 @@ service cloud.firestore {
       );
     }
 
-    // REGISTERED PHONES LOOKUP (to prevent duplicates without scanning private donor records)
-    match /registeredPhones/{phone} {
-      allow get: if true;
+    // DONOR CONTACTS COLLECTION (Strict Phone Number Access Protection)
+    // Only authenticated users with an approved active donor profile or staff can view phone numbers
+    match /donorContacts/{donorId} {
+      allow get: if isSignedIn() && (
+        hasStaffRole() ||
+        donorId == request.auth.uid ||
+        (resource != null && 'donorId' in resource.data && resource.data.donorId == request.auth.uid) ||
+        isAuthorizedApprovedDonor(request.auth.uid)
+      );
+      allow list: if isSignedIn() && hasStaffRole();
       allow create, update: if isSignedIn() && (
-        hasAdminRole() || (
-          request.resource.data.uid == request.auth.uid &&
-          (resource == null || resource.data.uid == request.auth.uid)
+        hasStaffRole() ||
+        donorId == request.auth.uid ||
+        request.resource.data.donorId == request.auth.uid
+      );
+      allow delete: if hasAdminRole() || hasDonorManagerRole() || (
+        isSignedIn() && (
+          donorId == request.auth.uid ||
+          (resource != null && 'donorId' in resource.data && resource.data.donorId == request.auth.uid)
         )
       );
-      allow delete: if hasAdminRole() || (
+    }
+
+    // REGISTERED PHONES LOOKUP (to prevent duplicates without scanning private donor records)
+    match /registeredPhones/{phone} {
+      allow get: if isSignedIn();
+      allow list: if hasStaffRole();
+      allow create, update: if isSignedIn() && (
+        hasStaffRole() ||
+        request.resource.data.uid == request.auth.uid
+      );
+      allow delete: if hasStaffRole() || (
+        isSignedIn() && resource != null && resource.data.uid == request.auth.uid
+      );
+    }
+
+    // REGISTERED IDENTIFIERS LOOKUP (Firebase Authentication Email Identifiers)
+    match /registeredIdentifiers/{identifier} {
+      allow get: if true;
+      allow list: if hasStaffRole();
+      allow create, update: if isSignedIn() && (
+        hasStaffRole() ||
+        request.resource.data.uid == request.auth.uid ||
+        ('email' in request.auth.token && request.resource.data.email.lower() == request.auth.token.email.lower())
+      );
+      allow delete: if hasStaffRole() || (
         isSignedIn() && resource != null && resource.data.uid == request.auth.uid
       );
     }
@@ -193,7 +246,7 @@ service cloud.firestore {
 
     // AUDIT LOGS
     match /auditLogs/{logId} {
-      allow read: if hasAdminRole() || hasAuditorRole();
+      allow read: if hasStaffRole() || hasAuditorRole();
       allow create: if isSignedIn();
       allow update, delete: if false; // Immutable audit logs
     }
