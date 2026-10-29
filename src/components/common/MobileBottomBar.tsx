@@ -8,7 +8,8 @@ interface MobileBottomBarProps {
 }
 
 export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({ currentPage, onNavigate }) => {
-  const { user, isDonorManager } = useAuth();
+  const { user, isDonorManager, isDataEntryOperator } = useAuth();
+  const canAccessAdmin = isDonorManager || isDataEntryOperator;
 
   const navItems = [
     {
@@ -29,7 +30,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({ currentPage, o
       icon: UserPlus,
       active: currentPage === 'register',
     },
-    ...(isDonorManager
+    ...(canAccessAdmin
       ? [
           {
             id: 'admin',

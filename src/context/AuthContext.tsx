@@ -35,6 +35,8 @@ interface AuthContextType {
   isSuperAdmin: boolean;
   isAdmin: boolean;
   isDonorManager: boolean;
+  isDataEntryOperator: boolean;
+  canRegisterDonor: boolean;
   loading: boolean;
   signIn: (email: string, pass: string) => Promise<void>;
   signUp: (email: string, pass: string, displayName: string) => Promise<User>;
@@ -258,6 +260,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const isSuperAdmin = permissions.has('users.manage_roles') || (userProfile?.roleIds.includes('super_admin') ?? false);
   const isAdmin = isSuperAdmin || (userProfile?.roleIds.includes('admin') ?? false);
   const isDonorManager = isAdmin || (userProfile?.roleIds.includes('donor_manager') ?? false);
+  const isDataEntryOperator = isDonorManager || (userProfile?.roleIds.includes('data_entry_operator') ?? false);
+  const canRegisterDonor = isSuperAdmin || isAdmin || isDonorManager || isDataEntryOperator || permissions.has('donors.create');
 
   return (
     <AuthContext.Provider
@@ -270,6 +274,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isSuperAdmin,
         isAdmin,
         isDonorManager,
+        isDataEntryOperator,
+        canRegisterDonor,
         loading,
         signIn,
         signUp,

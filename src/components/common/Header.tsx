@@ -8,7 +8,8 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate }) => {
-  const { user, userProfile, isDonorManager, signOut } = useAuth();
+  const { user, userProfile, isDonorManager, isDataEntryOperator, signOut } = useAuth();
+  const canAccessAdmin = isDonorManager || isDataEntryOperator;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks = [
@@ -58,7 +59,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate }) => {
                 </button>
               );
             })}
-            {isDonorManager && (
+            {canAccessAdmin && (
               <button
                 onClick={() => onNavigate('admin')}
                 className={`flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors py-1 ${
@@ -187,7 +188,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPage, onNavigate }) => {
                 </button>
               ))}
 
-              {isDonorManager && (
+              {canAccessAdmin && (
                 <button
                   onClick={() => {
                     onNavigate('admin');

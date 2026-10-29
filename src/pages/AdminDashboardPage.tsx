@@ -30,8 +30,10 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
-  Key
+  Key,
+  UserPlus
 } from 'lucide-react';
+import { ManualDonorModal } from '../components/donor/ManualDonorModal';
 import { useAuth } from '../context/AuthContext';
 import { 
   Donor, 
@@ -100,8 +102,9 @@ import * as XLSX from 'xlsx';
 type AdminTab = 'overview' | 'donors' | 'users' | 'policy' | 'import_export' | 'audit' | 'settings';
 
 export const AdminDashboardPage: React.FC<{ onNavigate: (page: string) => void }> = ({ onNavigate }) => {
-  const { user, userProfile, hasPermission, isSuperAdmin, isAdmin, isDonorManager } = useAuth();
+  const { user, userProfile, hasPermission, isSuperAdmin, isAdmin, isDonorManager, isDataEntryOperator, canRegisterDonor } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [manualDonorModalOpen, setManualDonorModalOpen] = useState(false);
   const tabScrollContainerRef = useRef<HTMLDivElement>(null);
   const tabButtonRefs = useRef<Record<AdminTab, HTMLButtonElement | null>>({
     overview: null,
@@ -309,7 +312,7 @@ export const AdminDashboardPage: React.FC<{ onNavigate: (page: string) => void }
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
 
-  const isStaff = isDonorManager || isAdmin || isSuperAdmin || hasPermission('donors.view') || hasPermission('reports.view');
+  const isStaff = isDonorManager || isDataEntryOperator || isAdmin || isSuperAdmin || hasPermission('donors.view') || hasPermission('donors.create') || hasPermission('reports.view');
 
   // 1. Fetch Overview Metrics
   const loadMetrics = useCallback(async () => {
@@ -2585,7 +2588,7 @@ export const AdminDashboardPage: React.FC<{ onNavigate: (page: string) => void }
               </div>
             </div>
 
-            {/* Bottom Row: Search & Blood Group Filter */}
+            {/* Bottom Row: Search, Blood Group Filter & Manual Donor Entry */}
             <div className="flex flex-col sm:flex-row items-center gap-2.5 text-xs">
               <div className="relative flex-1 w-full">
                 <input
@@ -2610,6 +2613,18 @@ export const AdminDashboardPage: React.FC<{ onNavigate: (page: string) => void }
                   </option>
                 ))}
               </select>
+
+              {canRegisterDonor && (
+                <button
+                  type="button"
+                  onClick={() => setManualDonorModalOpen(true)}
+                  className="w-full sm:w-auto px-3.5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1.5 min-h-[40px] shrink-0"
+                  title="Super Admin, Admin, Donor Manager, or Data Entry Operator manual registration"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Manual Donor Entry</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -4931,6 +4946,27 @@ export const AdminDashboardPage: React.FC<{ onNavigate: (page: string) => void }
             </div>
           </div>
         </div>
+      )}
+
+      {/* Manual Donor Registration Modal */}
+      {manualDonorModalOpen && (
+        <ManualDonorModal
+          isOpen={manualDonorModalOpen}
+          onClose={() => setManualDonorModalOpen(false)}
+          onSuccess={(newDonor) => {
+            setDonorsList((prev) => [newDonor, ...prev.filter((d) => d.id !== newDonor.id)]);
+            setMetrics((prev) => ({
+              ...prev,
+              totalDonors: prev.totalDonors + 1,
+              approvedDonors: newDonor.approvalStatus === 'approved' ? prev.approvedDonors + 1 : prev.approvedDonors,
+              availableDonors: newDonor.calculatedAvailability === 'available' ? prev.availableDonors + 1 : prev.availableDonors,
+            }));
+            setActionBanner({
+              message: `Donor "${newDonor.fullName}" (${newDonor.bloodGroup}) was manually registered into Firebase! Approval status is [${newDonor.approvalStatus}], availability is [${newDonor.calculatedAvailability}].`,
+              type: 'success',
+            });
+          }}
+        />
       )}
     </div>
   );

@@ -71,9 +71,10 @@ export const DEFAULT_ROLES: Role[] = [
   {
     id: 'donor_manager',
     name: 'Donor Manager',
-    description: 'View and manage donor records, process donor verification and approval decisions, and update donation history.',
+    description: 'View and manage donor records, register voluntary donors, process donor verification and approval decisions, and update donation history.',
     permissions: [
       'donors.view',
+      'donors.create',
       'donors.update',
       'donors.approve',
       'donors.reject',

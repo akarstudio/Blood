@@ -16,7 +16,8 @@ import {
   ChevronUp,
   SlidersHorizontal,
   Lock,
-  LogIn
+  LogIn,
+  UserPlus
 } from 'lucide-react';
 import { 
   collection, 
@@ -33,6 +34,7 @@ import { BANGLADESH_DIVISIONS, getDistrictsForDivision, getUpazilasForDistrict }
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Pagination } from '../components/common/Pagination';
 import { DonorProfileModal } from '../components/donor/DonorProfileModal';
+import { ManualDonorModal } from '../components/donor/ManualDonorModal';
 import { calculateDonorAvailability, formatBangladeshDateOnly, formatBangladeshPhone } from '../utils/availability';
 import { useAuth } from '../context/AuthContext';
 
@@ -46,8 +48,10 @@ interface FindDonorsPageProps {
 }
 
 export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, onNavigate }) => {
-  const { user } = useAuth();
+  const { user, canRegisterDonor } = useAuth();
   const isAuthenticated = Boolean(user);
+  const [manualRegisterOpen, setManualRegisterOpen] = useState(false);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   const [bloodGroup, setBloodGroup] = useState<string>(initialFilters?.bloodGroup || '');
   const [division, setDivision] = useState<string>(initialFilters?.division || '');
@@ -236,14 +240,43 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
               Search approved voluntary donors. Enforcing the {minimumIntervalMonths}-month calendar waiting interval.
             </p>
           </div>
-          <button
-            onClick={() => onNavigate('register')}
-            className="self-stretch sm:self-auto px-4 py-2.5 sm:py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-lg shadow-xs transition-colors text-center min-h-[44px] flex items-center justify-center"
-          >
-            Register as a Donor
-          </button>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            {canRegisterDonor && (
+              <button
+                type="button"
+                onClick={() => setManualRegisterOpen(true)}
+                className="px-4 py-2.5 sm:py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-lg shadow-xs transition-colors text-center min-h-[44px] flex items-center justify-center gap-1.5"
+                title="Super Admin, Admin, Donor Manager, or Data Entry Operator manual registration"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Manual Donor Entry</span>
+              </button>
+            )}
+            <button
+              onClick={() => onNavigate('register')}
+              className="px-4 py-2.5 sm:py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-lg shadow-xs transition-colors text-center min-h-[44px] flex items-center justify-center"
+            >
+              Register as a Donor
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Manual Registration Success Banner */}
+      {successBanner && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-center justify-between gap-3 shadow-xs animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            <span className="font-semibold">{successBanner}</span>
+          </div>
+          <button
+            onClick={() => setSuccessBanner(null)}
+            className="text-emerald-700 hover:text-emerald-900 p-1 font-bold text-sm"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Responsive Blood Group Tab Filter (Grid on tablet/desktop, smooth scrolling strip on mobile) */}
       <div className="space-y-2">
@@ -745,6 +778,22 @@ export const FindDonorsPage: React.FC<FindDonorsPageProps> = ({ initialFilters, 
         onClose={() => setSelectedDonor(null)}
         onNavigate={onNavigate}
       />
+
+      {/* Manual Donor Registration Modal */}
+      {manualRegisterOpen && (
+        <ManualDonorModal
+          isOpen={manualRegisterOpen}
+          onClose={() => setManualRegisterOpen(false)}
+          defaultDivision={division}
+          defaultDistrict={district}
+          onSuccess={(newDonor) => {
+            setRawDonors((prev) => [newDonor, ...prev.filter((d) => d.id !== newDonor.id)]);
+            setSuccessBanner(
+              `Donor "${newDonor.fullName}" (${newDonor.bloodGroup}) registered successfully in Firebase! Availability is [${newDonor.calculatedAvailability}].`
+            );
+          }}
+        />
+      )}
     </div>
   );
 };
