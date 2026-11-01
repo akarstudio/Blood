@@ -52,7 +52,9 @@ export const ManualDonorModal: React.FC<ManualDonorModalProps> = ({
   defaultDivision = '',
   defaultDistrict = '',
 }) => {
-  const { user, userProfile, isSuperAdmin, isAdmin, isDonorManager } = useAuth();
+  const { user, userProfile, hasPermission, isSuperAdmin, isAdmin, isDonorManager, isDataEntryOperator } = useAuth();
+
+  const canDirectlyApprove = isSuperAdmin || isAdmin || isDonorManager || hasPermission('donors.approve');
 
   // Form states
   const [fullName, setFullName] = useState('');
@@ -73,7 +75,7 @@ export const ManualDonorModal: React.FC<ManualDonorModalProps> = ({
   const [lastDonationDate, setLastDonationDate] = useState('');
   const [declaredAvailability, setDeclaredAvailability] = useState<AvailabilityStatus>('available');
 
-  const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>('approved');
+  const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>(canDirectlyApprove ? 'approved' : 'pending');
   const [contactVerificationStatus, setContactVerificationStatus] = useState<ContactVerificationStatus>('verified');
   const [accountStatus, setAccountStatus] = useState<AccountStatus>('active');
   const [additionalNotes, setAdditionalNotes] = useState('');
@@ -262,6 +264,7 @@ export const ManualDonorModal: React.FC<ManualDonorModalProps> = ({
       // 5. Write audit log
       if (user) {
         try {
+          const operatorRole = isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : isDonorManager ? 'Donor Manager' : isDataEntryOperator ? 'Data Entry Operator' : 'Operator';
           await logAuditEvent({
             actorUid: user.uid,
             actorEmail: user.email || undefined,
@@ -279,7 +282,7 @@ export const ManualDonorModal: React.FC<ManualDonorModalProps> = ({
               approvalStatus: newDonorData.approvalStatus,
               calculatedAvailability: newDonorData.calculatedAvailability,
             },
-            reason: `Manual registration entered by operator (${userProfile?.displayName || user.email})`,
+            reason: `Manual registration entered by ${operatorRole} (${userProfile?.displayName || user.email})`,
             outcome: 'success',
           });
         } catch (auditErr) {
