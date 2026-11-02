@@ -7,13 +7,14 @@ import {
   query, 
   where, 
   getDocs,
-  setDoc
+  setDoc,
+  updateDoc,
+  limit
 } from 'firebase/firestore';
 import { Donor, UserProfile, BloodGroup, ApprovalStatus, ContactVerificationStatus, AccountStatus, AvailabilityStatus, PreferredContactMethod, ContactVisibilityPreference } from '../types';
 import { logAuditEvent } from '../utils/audit';
 import { normalizeBangladeshPhone } from '../utils/validation';
-import { calculateDonorAvailability } from '../utils/availability';
-import { limit } from 'firebase/firestore';
+import { calculateDonorAvailability, parseFlexibleDate } from '../utils/availability';
 
 /**
  * Recursively strips any `undefined` values from an object before Firestore writes.
@@ -916,5 +917,66 @@ export async function fetchDonorContact(
     throw err;
   }
 }
+
+/**
+ * Scans all existing donors in /donors, cleans/normalizes their lastDonationDate,
+ * recalculates availability according to active system interval policy, and persists the updates.
+ */
+export async function recalculateAllDonorsAvailability(
+  db: Firestore,
+  minimumIntervalMonths: number = 3,
+  actor?: { uid: string; email?: string }
+): Promise<{ total: number; updated: number }> {
+  const donorsSnap = await getDocs(collection(db, 'donors'));
+  let updated = 0;
+  const nowIso = new Date().toISOString();
+
+  for (const dDoc of donorsSnap.docs) {
+    const data = dDoc.data() as Donor;
+    const rawLast = data.lastDonationDate;
+    const cleanedLast = rawLast ? parseFlexibleDate(rawLast) : '';
+
+    const calcResult = calculateDonorAvailability({
+      approvalStatus: data.approvalStatus,
+      contactVerificationStatus: data.contactVerificationStatus,
+      accountStatus: data.accountStatus,
+      declaredAvailability: data.declaredAvailability || 'available',
+      lastDonationDate: cleanedLast || undefined,
+    }, minimumIntervalMonths);
+
+    const needsDateUpdate = rawLast !== cleanedLast;
+    const needsStatusUpdate = data.calculatedAvailability !== calcResult.calculatedAvailability;
+    const needsEligUpdate = (data.eligibilityDate || '') !== (calcResult.eligibilityDate || '');
+
+    if (needsDateUpdate || needsStatusUpdate || needsEligUpdate) {
+      await updateDoc(doc(db, 'donors', dDoc.id), {
+        lastDonationDate: cleanedLast,
+        calculatedAvailability: calcResult.calculatedAvailability,
+        eligibilityDate: calcResult.eligibilityDate || '',
+        updatedAt: nowIso,
+      });
+      updated++;
+    }
+  }
+
+  if (actor && updated > 0) {
+    await logAuditEvent({
+      actorUid: actor.uid,
+      actorEmail: actor.email,
+      action: 'donor.recalculate_availability',
+      entityType: 'donor',
+      entityId: 'all_donors',
+      newValues: {
+        totalDonors: donorsSnap.size,
+        updatedDonors: updated,
+        minimumIntervalMonths,
+      },
+      outcome: 'success',
+    });
+  }
+
+  return { total: donorsSnap.size, updated };
+}
+
 
 
